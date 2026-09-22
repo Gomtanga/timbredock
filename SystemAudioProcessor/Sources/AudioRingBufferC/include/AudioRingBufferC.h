@@ -202,6 +202,10 @@ uint32_t lc_control_event_queue_pop(LCControlEventQueue *queue, LCControlEvent *
 uint32_t lc_control_event_queue_available(const LCControlEventQueue *queue);
 void lc_control_event_queue_acknowledge(LCControlEventQueue *queue, uint64_t revision);
 uint64_t lc_control_event_queue_applied_revision(const LCControlEventQueue *queue);
+// Packed DSP receipt: one lock-free word, published only after the callback
+// consumes a DSP event. Zero clears it while callbacks are quiescent.
+void lc_control_event_queue_publish_dsp_receipt(LCControlEventQueue *queue, uint64_t receipt);
+uint64_t lc_control_event_queue_dsp_receipt(const LCControlEventQueue *queue);
 
 // Single publisher: publish and clear must be serialized with each other.
 // Readers may copy concurrently. A 0 copy result means no coherent new snapshot

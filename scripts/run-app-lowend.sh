@@ -2,8 +2,9 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_DIR="${LOWEND_APP_DIR:-$ROOT/build/LowEndCircuit_artefacts/Release/NativeSystemAudio/LowEnd Native Audio.app}"
-APP="$APP_DIR/Contents/MacOS/LowEnd Native Audio"
+APP_NAME="TimbreDock"
+APP_DIR="${LOWEND_APP_DIR:-$ROOT/build/LowEndCircuit_artefacts/Release/NativeSystemAudio/$APP_NAME.app}"
+APP="$APP_DIR/Contents/MacOS/$APP_NAME"
 BUNDLE_ID="${1:-}"
 
 if [ ! -x "$APP" ]; then

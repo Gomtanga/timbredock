@@ -20,6 +20,88 @@ fileprivate extension Array {
     }
 }
 
+/// Read-only app discovery for the header target picker. It lists regular
+/// running applications and their icons on demand; it never queries CoreAudio,
+/// opens a tap or changes an audio setting.
+struct DiscoveredAudioApp: Equatable {
+    let name: String
+    let bundleID: String
+    let pid: pid_t
+}
+
+enum AudioProcessDiscovery {
+    static func runningApps() -> [DiscoveredAudioApp] {
+        NSWorkspace.shared.runningApplications
+            .compactMap { app -> DiscoveredAudioApp? in
+                guard app.activationPolicy != .prohibited,
+                      let bundleID = app.bundleIdentifier else { return nil }
+                return DiscoveredAudioApp(
+                    name: app.localizedName ?? bundleID,
+                    bundleID: bundleID,
+                    pid: app.processIdentifier
+                )
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    static func icon(forBundleID bundleID: String) -> NSImage? {
+        NSWorkspace.shared.runningApplications
+            .first { $0.bundleIdentifier == bundleID }?.icon
+    }
+}
+
+/// The draft capture target shown in the header. Selecting a target never
+/// retargets audio on its own; only Apply turns the draft into a live request.
+enum CaptureTarget: Equatable {
+    case system
+    case app(bundleID: String, name: String?)
+
+    var bundleID: String? {
+        if case .app(let bundleID, _) = self { return bundleID }
+        return nil
+    }
+
+    /// Persisted form: an empty string means system audio.
+    var persistedValue: String { bundleID ?? "" }
+
+    func displayName() -> String {
+        switch self {
+        case .system:
+            return L10n.string("main.header.target.system")
+        case .app(let bundleID, let name):
+            return L10n.format("main.header.target.app", name ?? bundleID)
+        }
+    }
+
+    static func fromPersisted(_ value: String?, name: String?) -> CaptureTarget {
+        guard let value, !value.isEmpty else { return .system }
+        return .app(bundleID: value, name: name)
+    }
+}
+
+/// The single mutually exclusive output rate mode exposed by the Output page.
+enum OutputRateMode: String, CaseIterable {
+    case standard
+    case upsample2x
+    case matchSource
+
+    var title: String {
+        switch self {
+        case .standard: return L10n.string("main.output.mode.standard")
+        case .upsample2x: return L10n.string("main.output.mode.upsample2x")
+        case .matchSource: return L10n.string("main.output.mode.matchSource")
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .standard: return L10n.string("main.output.mode.standard.detail")
+        case .upsample2x: return L10n.string("main.output.mode.upsample2x.detail")
+        case .matchSource: return L10n.string("main.output.mode.matchSource.detail")
+        }
+    }
+}
+
 enum AppError: Error, CustomStringConvertible {
     case message(String)
     case osStatus(String, OSStatus)
@@ -48,61 +130,17 @@ enum RateMatchPhase: String, Sendable {
 }
 
 
-private enum DynamicsMeterStyle {
-    case compactHorizontal
-    case analysis
-}
-
 private struct DynamicsMeterView: View {
     @ObservedObject var model: DynamicsMeterModel
-    var style: DynamicsMeterStyle = .compactHorizontal
 
     var body: some View {
-        switch style {
-        case .compactHorizontal:
-            compactBody
-        case .analysis:
-            analysisBody
-        }
-    }
-
-    private var compactBody: some View {
         VStack(spacing: 4) {
-            horizontalLevelBar(title: "Peak", db: model.levels.peak, color: Color(red: 0.96, green: 0.75, blue: 0.31), showValue: false)
-            horizontalLevelBar(title: "RMS", db: model.levels.rms, color: Color(red: 0.34, green: 0.80, blue: 0.92), showValue: false)
+            horizontalLevelBar(title: "Peak", db: model.levels.peak, color: Color.secondary, showValue: false)
+            horizontalLevelBar(title: "RMS", db: model.levels.rms, color: Color.secondary, showValue: false)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color(red: 0.07, green: 0.08, blue: 0.10))
-    }
-
-    private var analysisBody: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("다이내믹스")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.78, green: 0.81, blue: 0.86))
-                    Text("크레스트 팩터")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color(red: 0.58, green: 0.62, blue: 0.68))
-                }
-                Spacer(minLength: 8)
-                Text(formatDbText(model.levels.crestFactor))
-                    .font(.system(size: 30, weight: .heavy, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.96, green: 0.75, blue: 0.31))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-            }
-
-            VStack(spacing: 9) {
-                horizontalLevelBar(title: "Peak", db: model.levels.peak, color: Color(red: 0.96, green: 0.75, blue: 0.31), showValue: true)
-                horizontalLevelBar(title: "RMS", db: model.levels.rms, color: Color(red: 0.34, green: 0.80, blue: 0.92), showValue: true)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(red: 0.07, green: 0.08, blue: 0.10))
+        .background(Color(nsColor: GlassDesign.surface))
     }
 
     private func horizontalLevelBar(title: String, db: Float, color: Color, showValue: Bool) -> some View {
@@ -110,12 +148,12 @@ private struct DynamicsMeterView: View {
         return HStack(spacing: 8) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color(red: 0.78, green: 0.81, blue: 0.86))
+                .foregroundStyle(Color.secondary)
                 .frame(width: showValue ? 42 : 28, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color(red: 0.18, green: 0.21, blue: 0.25))
+                        .fill(Color.secondary.opacity(0.15))
                     RoundedRectangle(cornerRadius: 2)
                         .fill(color)
                         .frame(width: max(2, proxy.size.width * normalized))
@@ -125,7 +163,7 @@ private struct DynamicsMeterView: View {
             if showValue {
                 Text(formatDbText(db))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .frame(width: 72, alignment: .trailing)
             }
         }
@@ -134,35 +172,206 @@ private struct DynamicsMeterView: View {
 }
 
 @available(macOS 14.4, *)
-private struct PersistentAnalysisView: View {
-    let dynamicsModel: DynamicsMeterModel
-    let spectrumModel: SpectrumModel
+private struct MonitorAxisView: View {
+    let sampleRate: Double?
+
+    private static let axisMinHz: Double = 20
+    private static let axisMaxHz: Double = 20_000
+    private static let fftSize: Double = 16_384
+    private static let ticks: [Double] = [20, 100, 1_000, 10_000, 20_000]
+
+    private var nyquist: Double? {
+        guard let sampleRate, sampleRate >= 8_000 else { return nil }
+        return sampleRate / 2
+    }
+
+    private func position(_ hertz: Double) -> Double {
+        let upper = min(Self.axisMaxHz, nyquist ?? Self.axisMaxHz)
+        let clamped = min(max(hertz, Self.axisMinHz), upper)
+        return log(clamped / Self.axisMinHz) / log(upper / Self.axisMinHz)
+    }
+
+    private func tickLabel(_ hertz: Double) -> String {
+        hertz >= 1_000
+            ? String(format: "%.0fk", hertz / 1_000)
+            : String(format: "%.0f", hertz)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("실시간 분석")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color(red: 0.55, green: 0.60, blue: 0.68))
-
-            MetalSpectrumView(model: spectrumModel, isActive: true)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .frame(minHeight: 250)
-                .overlay(alignment: .topLeading) {
-                    Text("스펙트럼")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.78, green: 0.81, blue: 0.86))
-                        .padding(10)
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            let height = max(proxy.size.height, 1)
+            ZStack(alignment: .topLeading) {
+                if let nyquist {
+                    let lowEdge = sampleRate.map { $0 / Self.fftSize } ?? Self.axisMinHz
+                    if lowEdge > Self.axisMinHz {
+                        shading(left: 0, width: width * position(lowEdge), height: height)
+                    }
+                    let highestBin = nyquist * (1 - 2 / Self.fftSize)
+                    if highestBin < Self.axisMaxHz {
+                        let start = width * position(highestBin)
+                        shading(left: start, width: max(width - start, 0), height: height)
+                    }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            DynamicsMeterView(model: dynamicsModel, style: .analysis)
-                .frame(maxWidth: .infinity)
-                .frame(height: 150)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                ForEach(Self.ticks, id: \.self) { tick in
+                    if tick <= (nyquist ?? Self.axisMaxHz) || tick < 1_000 {
+                        let x = width * position(tick)
+                        Rectangle()
+                            .fill(Color(white: 0.7))
+                            .frame(width: 1, height: 6)
+                            .offset(x: max(min(x, width - 1), 0), y: 0)
+                        Text(tickLabel(tick))
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Color(white: 0.7))
+                            .fixedSize()
+                            .offset(x: min(max(x - 12, 0), max(width - 26, 0)), y: 8)
+                    }
+                }
+                ForEach([250.0, 4_000.0], id: \.self) { boundary in
+                    let x = width * position(boundary)
+                    Rectangle()
+                        .fill(Color(white: 0.7))
+                        .frame(width: 1, height: height)
+                        .offset(x: min(max(x, 0), width - 1))
+                }
+            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.10, green: 0.12, blue: 0.15))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func shading(left: CGFloat, width: CGFloat, height: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.black.opacity(0.42))
+            .frame(width: width, height: height)
+            .offset(x: left)
+    }
+}
+
+/// Signal Monitor page: dynamics from the shared analysis model plus the
+/// frequency display with our own logarithmic axis overlay.
+@available(macOS 14.4, *)
+private struct MonitorPageView: View {
+    @ObservedObject var dynamicsModel: DynamicsMeterModel
+    let spectrumModel: SpectrumModel
+    let isActive: Bool
+    private var sampleRate: Double? { dynamicsModel.sampleRate > 0 ? Double(dynamicsModel.sampleRate) : nil }
+
+    private var stateText: String {
+        switch dynamicsModel.state {
+        case .stopped: return L10n.string("main.monitor.state.stopped")
+        case .measuring: return L10n.string("main.monitor.state.measuring")
+        case .active: return L10n.string("main.monitor.state.active")
+        case .silence: return L10n.string("main.monitor.state.silence")
+        case .waiting: return L10n.string("main.monitor.state.waiting")
+        case .interrupted: return L10n.string("main.monitor.state.interrupted")
+        }
+    }
+
+    private var numbersAvailable: Bool {
+        switch dynamicsModel.state {
+        case .active, .silence: return true
+        default: return false
+        }
+    }
+
+    private var crestAvailable: Bool {
+        numbersAvailable && dynamicsModel.levels.crestAvailable && dynamicsModel.state == .active
+    }
+
+    private func dbText(_ value: Float) -> String {
+        numbersAvailable ? (value <= -100 ? "< −100" : String(format: "%.1f", Double(value))) : L10n.string("main.monitor.unavailable")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(L10n.string("main.monitor.title"))
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.primary)
+                ContextualHelp(text: L10n.string("main.monitor.point") + "\n\n" + L10n.string("main.monitor.frequency.note") + "\n\n" + L10n.string("main.monitor.frequency.bands"), title: L10n.string("main.monitor.title"))
+                    .frame(width: 28, height: 28)
+                Text(stateText)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(nsColor: GlassDesign.surface))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                Spacer(minLength: 6)
+            }
+
+            HStack(alignment: .top, spacing: 10) {
+                Text(L10n.string("main.monitor.dynamics"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondary)
+                Spacer()
+                if numbersAvailable && dynamicsModel.levels.peak >= 0 {
+                    Text(L10n.string("main.monitor.sampleFullScale"))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.orange)
+                        .help(L10n.string("main.monitor.sampleFullScale.help"))
+                }
+            }
+
+            HStack(spacing: 10) {
+                metricCard(title: L10n.string("main.monitor.peak"),
+                           value: dbText(dynamicsModel.levels.peak),
+                           detail: numbersAvailable ? "dBFS" : nil,
+                           accent: Color.primary)
+                metricCard(title: L10n.string("main.monitor.rms"),
+                           value: dbText(dynamicsModel.levels.rms),
+                           detail: numbersAvailable ? "dBFS" : nil,
+                           accent: Color.primary)
+                metricCard(title: L10n.string("main.monitor.crest"),
+                           value: crestAvailable
+                                ? String(format: "%.1f", Double(dynamicsModel.levels.crestFactor))
+                                : L10n.string("main.monitor.unavailable"),
+                           detail: crestAvailable ? "dB" : nil,
+                           accent: Color.primary)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(L10n.string("main.monitor.frequency"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondary)
+                ZStack(alignment: .topLeading) {
+                    MetalSpectrumView(model: spectrumModel, isActive: isActive)
+                    MonitorAxisView(sampleRate: sampleRate)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minHeight: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .frame(maxHeight: .infinity)
+
+
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: GlassDesign.surface))
+    }
+
+    private func metricCard(title: String, value: String, detail: String?, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+            Text(value)
+                .font(.system(size: 30, weight: .medium, design: .monospaced))
+                .foregroundStyle(accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: GlassDesign.well))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -306,35 +515,67 @@ private func parseArguments() throws -> Settings {
 @MainActor
 private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private enum AppPage: Int, CaseIterable {
-        case model
+        case sound
         case spatial
-        case routing
+        case monitor
         case output
         case settings
-        case diagnostics
 
         var title: String {
             switch self {
-            case .model: return "모델"
-            case .spatial: return "공간 음향"
-            case .routing: return "오디오 적용"
-            case .output: return "출력 컨디셔닝"
-            case .settings: return "설정"
-            case .diagnostics: return "진단"
+            case .sound: return L10n.string("main.page.sound")
+            case .spatial: return L10n.string("main.page.spatial")
+            case .monitor: return L10n.string("main.page.monitor")
+            case .output: return L10n.string("main.page.output")
+            case .settings: return L10n.string("main.page.settings")
             }
         }
 
         var symbolName: String {
             switch self {
-            case .model: return "slider.horizontal.3"
+            case .sound: return "slider.horizontal.3"
             case .spatial: return "move.3d"
-            case .routing: return "app.connected.to.app.below.fill"
-            case .output: return "waveform"
+            case .monitor: return "waveform.path.ecg"
+            case .output: return "speaker.wave.2.fill"
             case .settings: return "gearshape.fill"
-            case .diagnostics: return "stethoscope"
             }
         }
     }
+
+    private var headerView: NSView!
+    private var sessionView: NSView!
+    private var modelScroll: NSScrollView!
+    private var modelDocument: TopAlignedDocument!
+    private var pageHostView: NSView!
+    private var headerTargetCaption: NSTextField!
+    private var headerTargetPopup: NSPopUpButton!
+    private var headerChooseButton: NSButton!
+    private var headerClearButton: NSButton!
+    private var headerApplyButton: NSButton!
+    private var headerStopButton: NSButton!
+    private var headerActiveTargetLabel: NSTextField!
+    private var headerOutputLabel: NSTextField!
+    private var headerTargetEntryBundleIDs: [String?] = []
+    private var headerTargetEntryNames: [String] = []
+    private var headerTargetEntryIsSeparator: [Bool] = []
+    private var draftTarget: CaptureTarget = .system
+    private var activeTarget: CaptureTarget?
+    private var pendingTarget: CaptureTarget?
+    private var initialModel: Settings.DSPModel = .circuit
+    private var outputRateMode: OutputRateMode = .standard
+    private var outputDocument: NSView!
+    private var outputScroll: NSScrollView!
+    private enum OutputPageTag: Int { case page = 9100, title, subtitle, modeCaption, filterCaption, filterDetail, gainNote }
+    private var outputRateModePopup: NSPopUpButton!
+    private var outputModeDetailLabel: NSTextField!
+    private var outputMigrationNoticeLabel: NSTextField!
+    private var outputMigrationDismissButton: NSButton!
+    private var languagePopup: NSPopUpButton!
+    private var languageStatusLabel: NSTextField!
+    private var toneReceiptLabel: NSTextField!
+    private var settingsScroll: NSScrollView!
+    private var settingsDocument: TopAlignedDocument!
+    private var advancedSettingsView: TopAlignedDocument!
 
     private var window: NSWindow!
     private var rootView: NSView!
@@ -345,7 +586,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private var analysisRailView: NSHostingView<AnyView>!
     private var pageViews: [AppPage: NSView] = [:]
     private var sidebarButtons: [NSButton] = []
-    private var selectedPage: AppPage = .model
+    private var selectedPage: AppPage = .sound
     private var allSystemButton: NSButton!
     private var modelExplanationView: NSView!
     private var modelControlsView: NSView!
@@ -427,7 +668,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private var expertModeEnabled = UserDefaults.standard.bool(
         forKey: "expertModeEnabled"
     )
-    private var rateMatchStatusText = "자동 꺼짐"
+    private var rateMatchStatusText = L10n.string("runtime.rate.off")
     private var exciterOversamplingMode: ExciterOversamplingMode = {
         let rawValue = UInt32(clamping: UserDefaults.standard.integer(forKey: "exciterOversamplingMode"))
         return ExciterOversamplingMode(rawValue: rawValue) ?? .auto
@@ -500,8 +741,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         rateMatchStatusText = automaticRateMatchingEnabled
-            ? "자동 켜짐: 소스 안정화 대기"
-            : "자동 꺼짐"
+            ? L10n.string("runtime.rate.waiting")
+            : L10n.string("runtime.rate.off")
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(audioFormatDidChange(_:)),
@@ -532,170 +773,113 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         return .terminateCancel
     }
 
-    private func buildWindow() {
-        print("Opening LowEnd Native Audio control window.")
-        let rect = NSRect(x: 0, y: 0, width: 1080, height: 700)
+    private func buildWindow(showWindow: Bool = true) {
+        migrateLegacyOutputConditioningPreferences()
+        rateMatchStatusText = automaticRateMatchingEnabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
+        print("Opening TimbreDock control window.")
+        let rect = NSRect(x: 0, y: 0, width: 1180, height: 780)
         window = NSWindow(
             contentRect: rect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "LowEnd Native Audio"
+        window.title = L10n.string("main.window.title")
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.backgroundColor = GlassDesign.canvas
         window.minSize = NSSize(width: 940, height: 640)
         window.autorecalculatesKeyViewLoop = true
         window.delegate = self
         window.center()
 
-        let content = NSView(frame: rect)
+        let content = MonochromeSurface(frame: rect, radius: 0, canvas: true)
         content.autoresizingMask = [.width, .height]
         content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor(calibratedRed: 0.09, green: 0.10, blue: 0.12, alpha: 1).cgColor
-        window.contentView = content
+
+        if #available(macOS 26.0, *) {
+            let container = NSGlassEffectContainerView(frame: rect)
+            container.spacing = 0
+            container.contentView = content
+            window.contentView = container
+        } else { window.contentView = content }
         rootView = content
 
-        sidebarView = NSView(frame: NSRect(x: 0, y: 0, width: 160, height: rect.height))
+        let sidebar = GlassPanel(frame: NSRect(x: 0, y: 0, width: 184, height: rect.height), radius: 20)
+        sidebarView = sidebar
         sidebarView.wantsLayer = true
-        sidebarView.layer?.backgroundColor = NSColor(calibratedRed: 0.065, green: 0.075, blue: 0.095, alpha: 1).cgColor
+
         content.addSubview(sidebarView)
 
-        let brand = makeLabel("LowEnd", size: 23, weight: .bold)
-        brand.textColor = NSColor(calibratedRed: 0.96, green: 0.75, blue: 0.31, alpha: 1)
-        brand.frame = NSRect(x: 18, y: 642, width: 120, height: 30)
+        let brand = makeLabel(L10n.string("main.brand.name"), size: 20, weight: .bold)
+        brand.textColor = GlassDesign.ink
+        brand.lineBreakMode = .byTruncatingTail
+        brand.frame = NSRect(x: 20, y: rect.height - 54, width: 150, height: 28)
         brand.autoresizingMask = [.minYMargin]
-        sidebarView.addSubview(brand)
-
-        let brandCaption = makeLabel("NATIVE AUDIO", size: 9, weight: .bold)
-        brandCaption.textColor = NSColor(calibratedRed: 0.48, green: 0.53, blue: 0.61, alpha: 1)
-        brandCaption.frame = NSRect(x: 19, y: 625, width: 120, height: 14)
-        brandCaption.autoresizingMask = [.minYMargin]
-        sidebarView.addSubview(brandCaption)
+        sidebar.content.addSubview(brand)
 
         for (index, page) in AppPage.allCases.enumerated() {
             let button = makeSidebarButton(page: page)
-            button.frame = NSRect(x: 10, y: 560 - CGFloat(index) * 48, width: 140, height: 38)
+            button.frame = NSRect(x: 10, y: rect.height - 146 - CGFloat(index) * 50, width: 164, height: 42)
             button.autoresizingMask = [.minYMargin]
-            sidebarView.addSubview(button)
+            sidebar.content.addSubview(button)
             sidebarButtons.append(button)
         }
 
         allSystemButton = NSButton(
-            image: NSImage(systemSymbolName: "speaker.wave.3.fill", accessibilityDescription: "전체 시스템 적용") ?? NSImage(),
+            image: NSImage(systemSymbolName: "speaker.wave.3.fill", accessibilityDescription: nil) ?? NSImage(),
             target: self,
             action: #selector(startAllAudio)
         )
         allSystemButton.bezelStyle = .texturedRounded
         allSystemButton.imageScaling = .scaleProportionallyDown
-        allSystemButton.contentTintColor = NSColor(calibratedRed: 0.96, green: 0.75, blue: 0.31, alpha: 1)
-        allSystemButton.frame = NSRect(x: 59, y: 22, width: 42, height: 42)
-        allSystemButton.toolTip = "전체 시스템 오디오 처리를 시작합니다."
-        sidebarView.addSubview(allSystemButton)
+        allSystemButton.contentTintColor = GlassDesign.secondary
+        allSystemButton.isHidden = true
+        allSystemButton.frame = NSRect(x: 64, y: 22, width: 42, height: 42)
+        allSystemButton.setAccessibilityLabel(L10n.string("main.status.applySystem.accessibility"))
+        allSystemButton.toolTip = L10n.string("main.status.applySystem.tooltip")
+        sidebar.content.addSubview(allSystemButton)
 
-        pageContainerView = NSView(frame: NSRect(x: 160, y: 0, width: 620, height: rect.height))
+        pageContainerView = NSView(frame: NSRect(x: 170, y: 0, width: 620, height: rect.height))
         pageContainerView.wantsLayer = true
-        pageContainerView.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
+
         content.addSubview(pageContainerView)
 
-        analysisContainerView = NSView(frame: NSRect(x: 780, y: 0, width: 300, height: rect.height))
-        analysisContainerView.wantsLayer = true
-        analysisContainerView.layer?.backgroundColor = NSColor(calibratedRed: 0.10, green: 0.12, blue: 0.15, alpha: 1).cgColor
-        content.addSubview(analysisContainerView)
+        sessionView = NSView(frame: .zero)
+        pageContainerView.addSubview(sessionView)
+        headerView = makeCommonHeader()
+        pageContainerView.addSubview(headerView)
 
-        formatHeaderView = NSView()
-        formatHeaderView.wantsLayer = true
-        formatHeaderView.layer?.backgroundColor = NSColor(
-            calibratedRed: 0.13,
-            green: 0.16,
-            blue: 0.20,
-            alpha: 1
-        ).cgColor
-        formatHeaderView.layer?.cornerRadius = 7
-        analysisContainerView.addSubview(formatHeaderView)
+        pageHostView = MonochromeSurface(frame: NSRect(x: 0, y: 0, width: 620, height: rect.height - 120))
+        pageHostView.wantsLayer = true
+        pageHostView.layer?.masksToBounds = true
 
-        compactSourceTitleLabel = makeLabel("음원 재생", size: 10.5, weight: .semibold)
-        compactSourceTitleLabel.textColor = NSColor(
-            calibratedRed: 0.62,
-            green: 0.68,
-            blue: 0.76,
-            alpha: 1
-        )
-        formatHeaderView.addSubview(compactSourceTitleLabel)
+        pageContainerView.addSubview(pageHostView)
 
-        compactSourceValueLabel = makeLabel("재생 정보 대기 중", size: 19, weight: .bold)
-        compactSourceValueLabel.textColor = .white
-        compactSourceValueLabel.lineBreakMode = .byTruncatingTail
-        formatHeaderView.addSubview(compactSourceValueLabel)
-
-        compactOutputLabel = makeLabel("출력 포맷 대기 중", size: 11, weight: .medium)
-        compactOutputLabel.textColor = NSColor(
-            calibratedRed: 0.68,
-            green: 0.73,
-            blue: 0.80,
-            alpha: 1
-        )
-        compactOutputLabel.lineBreakMode = .byTruncatingMiddle
-        formatHeaderView.addSubview(compactOutputLabel)
-
-        compactModelLabel = makeLabel("적용 모델  Circuit", size: 11, weight: .semibold)
-        compactModelLabel.textColor = NSColor(
-            calibratedRed: 0.31,
-            green: 0.78,
-            blue: 0.94,
-            alpha: 1
-        )
-        compactModelLabel.lineBreakMode = .byTruncatingTail
-        formatHeaderView.addSubview(compactModelLabel)
-
-        sourceFormatLabel = makeLabel("Source: Apple Music/TIDAL 대기 중", size: 11.5, weight: .semibold)
-        sourceFormatLabel.lineBreakMode = .byTruncatingMiddle
-        sourceFormatLabel.toolTip = "플레이어 메타데이터 또는 Unified Log에서 감지한 원본 스트림 정보입니다. 확인할 수 없는 값은 추정하지 않고 unknown으로 표시합니다."
-        formatHeaderView.addSubview(sourceFormatLabel)
-
-        formatLabel = makeLabel("처리 포맷 대기 중", size: 11, weight: .semibold)
-        formatLabel.lineBreakMode = .byTruncatingMiddle
-        formatLabel.toolTip = "Tap은 Core Audio 공유 믹서에서 캡처한 PCM, Engine은 DSP 처리율, DAC는 출력 장치 레이트입니다."
-        formatHeaderView.addSubview(formatLabel)
-
-        oversamplingLabel = makeLabel("", size: 10.5, weight: .semibold)
-        oversamplingLabel.lineBreakMode = .byTruncatingMiddle
-        oversamplingLabel.toolTip = "전체 음원을 업스케일링하는 기능이 아니라 HighExciter의 비선형 배음 생성 구간에만 적용되는 내부 오버샘플링 상태입니다. Tap 값은 공유 시스템 PCM 처리율입니다."
-        oversamplingLabel.isHidden = true
-        formatHeaderView.addSubview(oversamplingLabel)
-
-        rateMatchPreviewLabel = makeLabel("Rate Match Preview: source waiting", size: 10, weight: .medium)
-        rateMatchPreviewLabel.lineBreakMode = .byTruncatingMiddle
-        rateMatchPreviewLabel.textColor = NSColor(calibratedRed: 0.62, green: 0.68, blue: 0.75, alpha: 1)
-        rateMatchPreviewLabel.toolTip = "원본 음원의 rate와 DAC 지원 rate를 비교한 미리보기입니다. 이 표시만으로 장치 설정을 변경하지 않습니다."
-        formatHeaderView.addSubview(rateMatchPreviewLabel)
-
-        analysisRailView = NSHostingView(rootView: AnyView(
-            PersistentAnalysisView(
-                dynamicsModel: dynamicsMeterModel,
-                spectrumModel: spectrumModel
-            )
-        ))
-        analysisContainerView.addSubview(analysisRailView)
-
-        pageViews[.model] = makeModelPage()
+        pageViews[.sound] = makeModelPage()
         pageViews[.spatial] = makeSpatialPage()
-        pageViews[.routing] = makeRoutingPage()
-        pageViews[.settings] = makeSettingsPage()
+        pageViews[.monitor] = makeMonitorPage()
         pageViews[.output] = makeOutputConditioningPage()
-        pageViews[.diagnostics] = makeDiagnosticsPage()
+        pageViews[.settings] = makeSettingsPage()
         for page in AppPage.allCases {
             guard let pageView = pageViews[page] else { continue }
-            pageView.frame = pageContainerView.bounds
+            pageView.frame = pageHostView.bounds
             pageView.isHidden = page != selectedPage
-            pageContainerView.addSubview(pageView)
+            pageHostView.addSubview(pageView)
         }
 
-        refreshApps()
+        loadCaptureTargetPreferences()
+        rebuildHeaderTargetMenu()
         updateFormatHeaderMode()
         updateCompactFormatSummary()
+        refreshHeaderPresentation()
         layoutApplication()
         updateSelectedPage()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        refreshAudioOperationPresentation()
+        if showWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -705,68 +889,450 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private func layoutApplication() {
         guard let content = window?.contentView else { return }
         let bounds = content.bounds
-        let sidebarWidth: CGFloat = 160
-        let analysisWidth = min(max(bounds.width * 0.28, 260), 320)
-        let gap: CGFloat = 1
-
-        sidebarView.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: bounds.height)
-        analysisContainerView.frame = NSRect(
-            x: bounds.width - analysisWidth,
-            y: 0,
-            width: analysisWidth,
-            height: bounds.height
-        )
-        pageContainerView.frame = NSRect(
-            x: sidebarWidth + gap,
-            y: 0,
-            width: max(bounds.width - sidebarWidth - analysisWidth - gap * 2, 1),
-            height: bounds.height
-        )
-
-        let railWidth = analysisContainerView.bounds.width
-        let headerHeight: CGFloat = expertModeEnabled ? 90 : 106
-        formatHeaderView.frame = NSRect(
-            x: 8,
-            y: bounds.height - headerHeight - 8,
-            width: railWidth - 16,
-            height: headerHeight
-        )
-
-        let headerWidth = formatHeaderView.bounds.width
-        compactSourceTitleLabel.frame = NSRect(x: 14, y: 80, width: headerWidth - 28, height: 15)
-        compactSourceValueLabel.frame = NSRect(x: 14, y: 52, width: headerWidth - 28, height: 25)
-        compactOutputLabel.frame = NSRect(x: 14, y: 29, width: headerWidth - 28, height: 17)
-        compactModelLabel.frame = NSRect(x: 14, y: 9, width: headerWidth - 28, height: 16)
-
-        sourceFormatLabel.frame = NSRect(x: 12, y: 67, width: headerWidth - 24, height: 17)
-        formatLabel.frame = NSRect(x: 12, y: 48, width: headerWidth - 24, height: 16)
-        oversamplingLabel.frame = NSRect(x: 12, y: 29, width: headerWidth - 24, height: 16)
-        rateMatchPreviewLabel.frame = NSRect(x: 12, y: 10, width: headerWidth - 24, height: 15)
-        analysisRailView.frame = NSRect(
-            x: 0,
-            y: 0,
-            width: railWidth,
-            height: max(bounds.height - headerHeight - 16, 1)
-        )
-
-        for pageView in pageViews.values {
-            pageView.frame = pageContainerView.bounds
-        }
+        let margin: CGFloat = 12
+        let sidebarWidth: CGFloat = 184
+        let gap: CGFloat = 12
+        let headerHeight: CGFloat = 68
+        let sessionHeight: CGFloat = 64
+        sidebarView.frame = NSRect(x: margin, y: margin, width: sidebarWidth, height: max(bounds.height - margin * 2, 1))
+        pageContainerView.frame = NSRect(x: margin + sidebarWidth + gap, y: margin,
+            width: max(bounds.width - sidebarWidth - gap - margin * 2, 1), height: max(bounds.height - margin * 2, 1))
+        let size = pageContainerView.bounds.size
+        headerView.frame = NSRect(x: 0, y: max(size.height - headerHeight, 0), width: size.width, height: headerHeight)
+        sessionView.frame = NSRect(x: 0, y: 0, width: size.width, height: sessionHeight)
+        pageHostView.frame = NSRect(x: 0, y: sessionHeight + gap, width: size.width,
+            height: max(size.height - headerHeight - sessionHeight - gap * 2, 1))
+        headerView.layoutSubtreeIfNeeded()
+        layoutCommonHeader()
+        for pageView in pageViews.values { pageView.frame = pageHostView.bounds }
         layoutModelPage()
-        layoutRoutingPage()
+        layoutOutputConditioningPage()
+        layoutSettingsPage()
+    }
+
+    private func makeCommonHeader() -> NSView {
+        let view = GlassPanel(frame: NSRect(x: 0, y: 0, width: 620, height: 68), radius: 18)
+        view.wantsLayer = true
+
+        headerTargetCaption = makeLabel(L10n.string("main.header.target.label"), size: 11, weight: .semibold)
+        headerTargetCaption.isHidden = true
+        view.content.addSubview(headerTargetCaption)
+
+        headerTargetPopup = StudioPopUpButton(frame: NSRect(x: 74, y: 82, width: 210, height: 26), pullsDown: false)
+        headerTargetPopup.target = self
+        headerTargetPopup.action = #selector(headerTargetChanged)
+        headerTargetPopup.font = .systemFont(ofSize: 13, weight: .semibold)
+        headerTargetPopup.focusRingType = .none
+        headerTargetPopup.setAccessibilityLabel(L10n.string("main.a11y.target"))
+        headerTargetPopup.toolTip = L10n.string("main.target.discovery.tooltip")
+        view.content.addSubview(headerTargetPopup)
+
+        headerChooseButton = makeButton(L10n.string("main.header.target.choose"), action: #selector(chooseTargetApp))
+        headerChooseButton.font = .systemFont(ofSize: 12, weight: .semibold)
+        headerChooseButton.frame = NSRect(x: 292, y: 82, width: 110, height: 26)
+        headerChooseButton.image = NSImage(systemSymbolName: "plus.app", accessibilityDescription: nil)
+        headerChooseButton.imagePosition = .imageOnly
+        headerChooseButton.setAccessibilityLabel(headerChooseButton.title)
+        headerChooseButton.toolTip = headerChooseButton.title
+        view.content.addSubview(headerChooseButton)
+
+        headerClearButton = makeButton(L10n.string("main.header.target.clear"), action: #selector(clearTargetApp))
+        headerClearButton.font = .systemFont(ofSize: 12, weight: .regular)
+        headerClearButton.frame = NSRect(x: 408, y: 82, width: 118, height: 26)
+        headerClearButton.toolTip = L10n.string("main.target.clear.tooltip")
+        headerClearButton.image = NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: nil)
+        headerClearButton.imagePosition = .imageOnly
+        headerClearButton.setAccessibilityLabel(headerClearButton.title)
+        view.content.addSubview(headerClearButton)
+
+        headerApplyButton = makeButton(L10n.string("main.button.apply"), action: #selector(applyDraftTarget))
+        headerApplyButton.keyEquivalent = "\r"
+        (headerApplyButton as? StudioButton)?.prominent = true
+        headerApplyButton.setAccessibilityLabel(L10n.string("main.a11y.apply"))
+        headerApplyButton.autoresizingMask = []
+        headerApplyButton.frame = NSRect(x: 620 - 196, y: 82, width: 86, height: 26)
+        view.content.addSubview(headerApplyButton)
+        // The lifecycle presentation enables/disables Apply through this
+        // existing property so the tested machinery keeps one owner.
+        routingStartAppButton = headerApplyButton
+
+        headerStopButton = makeButton(L10n.string("main.button.stop"), action: #selector(stopAudio))
+        headerStopButton.setAccessibilityLabel(L10n.string("main.a11y.stop"))
+        headerStopButton.autoresizingMask = []
+        headerStopButton.frame = NSRect(x: 620 - 104, y: 82, width: 96, height: 26)
+        view.content.addSubview(headerStopButton)
+
+        statusLabel = makeLabel(L10n.string("main.status.ready"), size: 12.5, weight: .semibold)
+        statusLabel.textColor = GlassDesign.ink
+        statusLabel.lineBreakMode = .byTruncatingTail
+        statusLabel.autoresizingMask = []
+        sessionView.addSubview(statusLabel)
+
+        headerActiveTargetLabel = makeLabel(L10n.string("main.header.active.none"), size: 11.5, weight: .medium)
+        headerActiveTargetLabel.textColor = GlassDesign.secondary
+        headerActiveTargetLabel.lineBreakMode = .byTruncatingTail
+        headerActiveTargetLabel.setAccessibilityLabel(L10n.string("main.a11y.activeTarget"))
+        headerActiveTargetLabel.autoresizingMask = []
+        sessionView.addSubview(headerActiveTargetLabel)
+
+        compactSourceTitleLabel = makeLabel(L10n.string("main.format.sourceTitle"), size: 10.5, weight: .semibold)
+        compactSourceTitleLabel.textColor = GlassDesign.secondary
+        compactSourceTitleLabel.lineBreakMode = .byTruncatingTail
+        sessionView.addSubview(compactSourceTitleLabel)
+
+        compactSourceValueLabel = makeLabel(L10n.string("main.format.sourceWaiting"), size: 13, weight: .bold)
+        compactSourceValueLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        compactSourceValueLabel.textColor = GlassDesign.ink
+        compactSourceValueLabel.lineBreakMode = .byTruncatingTail
+        sessionView.addSubview(compactSourceValueLabel)
+
+        compactModelLabel = makeLabel(
+            L10n.format("main.sound.summary.model", selectedDSPModel().displayName),
+            size: 11, weight: .semibold
+        )
+        compactModelLabel.textColor = GlassDesign.secondary
+        compactModelLabel.lineBreakMode = .byTruncatingTail
+        compactModelLabel.isHidden = true
+        sessionView.addSubview(compactModelLabel)
+
+        compactOutputLabel = makeLabel(L10n.string("main.format.outputWaiting"), size: 11, weight: .medium)
+        compactOutputLabel.textColor = GlassDesign.secondary
+        compactOutputLabel.lineBreakMode = .byTruncatingMiddle
+        sessionView.addSubview(compactOutputLabel)
+
+        headerOutputLabel = makeLabel(L10n.string("main.header.output.waiting"), size: 11, weight: .medium)
+        headerOutputLabel.textColor = GlassDesign.secondary
+        headerOutputLabel.lineBreakMode = .byTruncatingTail
+        headerOutputLabel.autoresizingMask = []
+        sessionView.addSubview(headerOutputLabel)
+
+        return view
+    }
+
+    private func layoutCommonHeader() {
+        let width = headerView.bounds.width
+        headerTargetPopup.frame = NSRect(x: 14, y: 14, width: width - 300, height: 40)
+        let next = headerTargetPopup.frame.maxX + 8
+        headerChooseButton.frame = NSRect(x: next, y: 14, width: 40, height: 40)
+        headerClearButton.frame = NSRect(x: next + 46, y: 14, width: 40, height: 40)
+        headerApplyButton.frame = NSRect(x: width - 178, y: 14, width: 88, height: 40)
+        headerStopButton.frame = NSRect(x: width - 84, y: 14, width: 70, height: 40)
+        let column = (width - 64) / 3
+        statusLabel.frame = NSRect(x: 16, y: 32, width: column, height: 19)
+        headerActiveTargetLabel.frame = NSRect(x: 16, y: 10, width: column, height: 17)
+        compactSourceTitleLabel.frame = NSRect(x: column + 32, y: 32, width: column, height: 19)
+        compactSourceValueLabel.frame = NSRect(x: column + 32, y: 10, width: column, height: 17)
+        headerOutputLabel.frame = NSRect(x: column * 2 + 48, y: 32, width: column, height: 19)
+        compactOutputLabel.frame = NSRect(x: column * 2 + 48, y: 10, width: column, height: 17)
+    }
+
+    private func loadCaptureTargetPreferences() {
+        let stored = preferenceStore.string(forKey: "captureTargetBundleID")
+        let name = preferenceStore.string(forKey: "captureTargetName")
+        draftTarget = CaptureTarget.fromPersisted(stored, name: name)
+        bundleField?.stringValue = draftTarget.bundleID ?? ""
+    }
+
+    private func persistDraftTarget() {
+        preferenceStore.set(draftTarget.persistedValue, forKey: "captureTargetBundleID")
+        if case .app(_, let name) = draftTarget {
+            preferenceStore.set(name ?? "", forKey: "captureTargetName")
+        } else {
+            preferenceStore.set("", forKey: "captureTargetName")
+        }
+    }
+
+    private func setDraftTarget(_ target: CaptureTarget) {
+        draftTarget = target
+        persistDraftTarget()
+        bundleField?.stringValue = target.bundleID ?? ""
+        rebuildHeaderTargetMenu()
+        refreshHeaderPresentation()
+    }
+
+    private func rebuildHeaderTargetMenu(discoveredApps: [DiscoveredAudioApp]? = nil) {
+        guard let popup = headerTargetPopup else { return }
+        popup.removeAllItems()
+        headerTargetEntryBundleIDs = []
+        headerTargetEntryNames = []
+        headerTargetEntryIsSeparator = []
+
+        popup.addItem(withTitle: L10n.string("main.header.target.system"))
+        popup.lastItem?.image = NSImage(systemSymbolName: "speaker.wave.3.fill", accessibilityDescription: nil)
+        headerTargetEntryBundleIDs.append(nil)
+        headerTargetEntryNames.append(L10n.string("main.header.target.system"))
+        headerTargetEntryIsSeparator.append(false)
+
+        popup.menu?.addItem(.separator())
+        headerTargetEntryBundleIDs.append(nil)
+        headerTargetEntryNames.append("")
+        headerTargetEntryIsSeparator.append(true)
+
+        var apps = discoveredApps ?? AudioProcessDiscovery.runningApps()
+        if case .app(let bundleID, let name) = draftTarget,
+           !apps.contains(where: { $0.bundleID == bundleID }) {
+            apps.insert(DiscoveredAudioApp(name: name ?? bundleID, bundleID: bundleID, pid: 0), at: 0)
+        }
+        for app in apps {
+            let item = NSMenuItem(title: app.name, action: nil, keyEquivalent: "")
+            item.representedObject = app.bundleID
+            item.image = AudioProcessDiscovery.icon(forBundleID: app.bundleID)
+                ?? NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
+            popup.menu?.addItem(item)
+            headerTargetEntryBundleIDs.append(app.bundleID)
+            headerTargetEntryNames.append(app.name)
+            headerTargetEntryIsSeparator.append(false)
+        }
+        syncHeaderTargetSelection()
+    }
+
+    private func syncHeaderTargetSelection() {
+        guard let popup = headerTargetPopup else { return }
+        let wanted = draftTarget.bundleID
+        for (index, bundleID) in headerTargetEntryBundleIDs.enumerated() {
+            if headerTargetEntryIsSeparator.indices.contains(index), headerTargetEntryIsSeparator[index] { continue }
+            if bundleID == wanted {
+                popup.selectItem(at: index)
+                return
+            }
+        }
+        popup.selectItem(at: 0)
+    }
+
+    @objc private func headerTargetChanged() {
+        let index = headerTargetPopup.indexOfSelectedItem
+        guard headerTargetEntryBundleIDs.indices.contains(index),
+              !headerTargetEntryIsSeparator[index] else { return }
+        if let bundleID = headerTargetEntryBundleIDs[index] {
+            draftTarget = .app(bundleID: bundleID, name: headerTargetEntryNames[index])
+        } else {
+            draftTarget = .system
+        }
+        persistDraftTarget()
+        bundleField?.stringValue = draftTarget.bundleID ?? ""
+        refreshHeaderPresentation()
+    }
+
+    @objc private func chooseTargetApp() {
+        let apps = AudioProcessDiscovery.runningApps()
+        guard !apps.isEmpty else { return }
+        let alert = NSAlert()
+        alert.messageText = L10n.string("main.header.target.label")
+        alert.informativeText = L10n.string("main.target.discovery.tooltip")
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26), pullsDown: false)
+        for app in apps {
+            let item = NSMenuItem(title: app.name, action: nil, keyEquivalent: "")
+            item.representedObject = app.bundleID
+            item.image = AudioProcessDiscovery.icon(forBundleID: app.bundleID)
+                ?? NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
+            popup.menu?.addItem(item)
+        }
+        popup.selectItem(at: 0)
+        alert.accessoryView = popup
+        alert.addButton(withTitle: L10n.string("main.header.target.choose"))
+        alert.addButton(withTitle: L10n.string("main.alert.cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let index = popup.indexOfSelectedItem
+        guard apps.indices.contains(index) else { return }
+        setDraftTarget(.app(bundleID: apps[index].bundleID, name: apps[index].name))
+    }
+
+    @objc private func clearTargetApp() {
+        setDraftTarget(.system)
+    }
+
+    @objc private func commitBundleTarget() {
+        let value = bundleField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else {
+            setDraftTarget(.system)
+            return
+        }
+        let name = AudioProcessDiscovery.runningApps().first { $0.bundleID == value }?.name
+        setDraftTarget(.app(bundleID: value, name: name))
+    }
+
+    @objc private func applyDraftTarget() {
+        guard pendingAudioOperation == nil else {
+            refreshAudioOperationPresentation()
+            return
+        }
+        let target = draftTarget
+        pendingTarget = target
+        start(settings(for: target.bundleID.map { .bundleIDs([$0]) } ?? .all))
+    }
+
+    private func refreshHeaderPresentation() {
+        statusLabel?.toolTip = statusLabel?.stringValue
+        if let activeTarget {
+            headerActiveTargetLabel?.stringValue =
+                L10n.format("main.header.active.some", activeTarget.displayName())
+        } else {
+            headerActiveTargetLabel?.stringValue = L10n.string("main.header.active.none")
+        }
+        headerActiveTargetLabel?.toolTip = L10n.string("main.header.pending")
+        if diagCachedDeviceName != "—" {
+            let name = diagCachedDeviceName
+            headerOutputLabel?.stringValue = L10n.format("main.header.output.format", name)
+        } else {
+            headerOutputLabel?.stringValue = L10n.string("main.header.output.waiting")
+        }
+        headerOutputLabel?.toolTip = headerOutputLabel?.stringValue
+    }
+
+    private func makeMonitorPage() -> NSView {
+        analysisRailView = NSHostingView(rootView: AnyView(MonitorPageView(
+            dynamicsModel: dynamicsMeterModel, spectrumModel: spectrumModel, isActive: selectedPage == .monitor)))
+        analysisRailView.frame = pageHostView.bounds
+        return analysisRailView
+    }
+
+    private func outputString(_ key: String, _ fallback: String) -> String {
+        L10n.string(key)
+    }
+
+    private func makeOutputWrappingLabel(_ text: String, size: CGFloat, weight: NSFont.Weight) -> NSTextField {
+        let label = makeLabel(text, size: size, weight: weight)
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 0
+        return label
+    }
+
+    private func layoutOutputConditioningPage(_ page: NSView? = nil) {
+        guard let page = page ?? outputDocument else { return }
+        let notice = preferenceStore.bool(forKey: RedesignPreferences.Keys.noticePending)
+        let offset: CGFloat = notice ? 80 : 0
+        page.setFrameSize(NSSize(width: max(outputScroll?.contentSize.width ?? page.frame.width, 1),
+                                 height: max(outputScroll?.contentSize.height ?? 0, 620 + offset)))
+        let width = page.bounds.width
+        let left: CGFloat = 28
+        let inner: CGFloat = 48
+        let available = width - 96
+        func set(_ view: NSView?, x: CGFloat = 48, top: CGFloat, width: CGFloat, height: CGFloat) {
+            view?.frame = NSRect(x: x, y: top, width: max(1, width), height: height)
+        }
+        func tagged(_ tag: OutputPageTag) -> NSView? { page.viewWithTag(tag.rawValue) }
+        set(tagged(.title), x: left, top: 24, width: width - 100, height: 34)
+        for (tag, top, h) in [(9921, CGFloat(90), CGFloat(100)), (9922, 206 + offset, 100), (9923, 322 + offset, 112)] {
+            set(page.viewWithTag(tag), x: left, top: top, width: width - left * 2, height: h)
+        }
+        set(tagged(.modeCaption), top: 108, width: available - 32, height: 20)
+        set(outputRateModePopup, x: inner - 2, top: 136, width: min(440, available), height: 40)
+        set(tagged(.filterCaption), top: 224 + offset, width: available - 32, height: 20)
+        set(outputConditioningFilterPopup, x: inner - 2, top: 252 + offset, width: min(240, available), height: 40)
+        set(outputConditioningHeadroomCaption, top: 340 + offset, width: available - 32, height: 20)
+        set(outputConditioningHeadroomSlider, top: 382 + offset, width: available - 100, height: 28)
+        set(outputConditioningHeadroomValueLabel, x: width - 136, top: 380 + offset, width: 88, height: 30)
+        if notice {
+            set(outputMigrationNoticeLabel, x: left, top: 202, width: width - 230, height: 62)
+            set(outputMigrationDismissButton, x: width - 188, top: 216, width: 160, height: 30)
+        } else {
+            outputMigrationNoticeLabel?.frame = .zero; outputMigrationDismissButton?.frame = .zero
+        }
+        set(outputConditioningStatusLabel, x: left, top: 454 + offset, width: width - 56, height: 36)
+        set(outputConditioningRuntimeLabel, x: left, top: 498 + offset, width: width - 56, height: 86)
+        for view in [tagged(.subtitle), outputModeDetailLabel, tagged(.filterDetail), tagged(.gainNote)] { view?.frame = .zero }
+        for (tag, caption) in [(9901, tagged(.title)), (9902, tagged(.modeCaption)),
+                                (9903, tagged(.filterCaption)), (9904, outputConditioningHeadroomCaption)] {
+            if let help = page.viewWithTag(tag), let caption {
+                help.frame = NSRect(x: width - (tag == 9901 ? 56 : 76), y: caption.frame.midY - 14, width: 28, height: 28)
+            }
+        }
+        for view in page.subviews { view.autoresizingMask = [] }
+    }
+
+    private func refreshOutputRateModeSelection() {
+        if let index = OutputRateMode.allCases.firstIndex(of: outputRateMode) {
+            outputRateModePopup?.selectItem(at: index)
+        }
+        outputModeDetailLabel?.stringValue = outputRateMode.detail
+        (outputDocument?.viewWithTag(9902) as? GlassHelpButton)?.message = outputRateMode.detail
+        outputRateModePopup?.toolTip = outputRateMode.detail
+        refreshOutputGainNote()
+    }
+
+    private func refreshOutputGainNote() {
+        guard let note = outputDocument?
+            .viewWithTag(OutputPageTag.gainNote.rawValue) as? NSTextField else { return }
+        let state = outputGainStateText
+        note.stringValue = String(
+            format: outputString("main.output.gain.tooltip", "%@. Requested %@. It attenuates level only on the actual 2x output."),
+            state,
+            formatDbText(outputConditioningHeadroomDB))
+        (outputDocument?.viewWithTag(9904) as? GlassHelpButton)?.message = note.stringValue
+    }
+
+    private func layoutSettingsPage() {
+        guard let settingsScroll, let settingsDocument else { return }
+        settingsDocument.frame.size = NSSize(width: settingsScroll.contentSize.width,
+            height: expertModeEnabled ? 1280 : max(settingsScroll.contentSize.height, 320))
+        advancedSettingsView?.frame.size.width = settingsScroll.contentSize.width
+        advancedSettingsView?.isHidden = !expertModeEnabled
+    }
+
+    @objc private func languageChanged() {
+        guard let raw = languagePopup.selectedItem?.representedObject as? String,
+              let language = AppLanguage(rawValue: raw) else { return }
+        preferenceStore.set(language.rawValue, forKey: AppLanguage.preferenceKey)
+        // Flush this infrequent explicit preference change before the user quits.
+        if preferenceStore.synchronize() {
+            refreshLanguagePresentation()
+        } else {
+            languageStatusLabel?.stringValue = L10n.string("main.settings.language.saveFailed")
+        }
+    }
+
+    private func refreshLanguagePresentation() {
+        let saved = AppLanguage.fromStoredValue(preferenceStore.string(forKey: AppLanguage.preferenceKey))
+        languageStatusLabel?.stringValue = saved == AppLanguage.current
+            ? L10n.format("main.settings.language.current", AppLanguage.current.nativeName)
+            : L10n.format("main.settings.language.pending", saved.nativeName, AppLanguage.current.nativeName)
+    }
+
+    private func migrateLegacyOutputConditioningPreferences() {
+        let migrated = RedesignPreferences.migrate(preferenceStore)
+        initialModel = migrated.model
+        outputRateMode = migrated.outputMode
+        outputConditioningEnabled = migrated.outputMode == .upsample2x
+        outputConditioningModeRaw = outputConditioningEnabled ? OutputConditioningMode.pcmOversampling.rawValue : OutputConditioningMode.bypass.rawValue
+        outputConditioningFactor = 2
+        outputConditioningFilterRaw = migrated.filter.rawValue
+        outputConditioningHeadroomDB = migrated.gainDB
+        outputConditioningDither = false; outputConditioningNoiseShape = false; outputConditioningDSDRaw = DSDMode.off.rawValue
+        automaticRateMatchingEnabled = migrated.outputMode == .matchSource
+    }
+
+    @objc private func outputRateModeChanged() {
+        guard let popup = outputRateModePopup, OutputRateMode.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
+        outputRateMode = OutputRateMode.allCases[popup.indexOfSelectedItem]
+        preferenceStore.set(outputRateMode.rawValue, forKey: "outputRateMode")
+        // Normalize the stored and in-memory legacy representation together.
+        migrateLegacyOutputConditioningPreferences()
+        rateMatchStatusText = automaticRateMatchingEnabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
+        refreshOutputRateModeSelection()
+        applyOutputConditioningControlEnabledState()
+        updateOutputConditioningStatus()
+        pushOutputConditioningSettings()
+        if pendingAudioOperation == nil, currentStopFailure == nil, currentProcessingFailure == nil {
+            processor?.setAutomaticRateMatchingEnabled(automaticRateMatchingEnabled)
+        }
+        rateMatchStatusText = automaticRateMatchingEnabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
+        updateRateMatchPreview()
     }
 
     private func makeSidebarButton(page: AppPage) -> NSButton {
-        let button = NSButton(title: page.title, target: self, action: #selector(sidebarPageChanged(_:)))
+        let button = NavigationPill(title: page.title, target: self, action: #selector(sidebarPageChanged(_:)))
         button.tag = page.rawValue
         button.bezelStyle = .recessed
+        button.isBordered = false
+        button.navigation = true
+        button.focusRingType = .none
         button.refusesFirstResponder = false
         button.alignment = .left
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         button.image = NSImage(systemSymbolName: page.symbolName, accessibilityDescription: page.title)
         button.imagePosition = .imageLeading
         button.wantsLayer = true
-        button.layer?.cornerRadius = 6
+        button.layer?.cornerRadius = 11
         return button
     }
 
@@ -777,6 +1343,9 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func updateSelectedPage() {
+        spectrumModel.setAnalysisActive(selectedPage == .monitor)
+        analysisRailView?.rootView = AnyView(MonitorPageView(dynamicsModel: dynamicsMeterModel,
+            spectrumModel: spectrumModel, isActive: selectedPage == .monitor))
         for page in AppPage.allCases {
             pageViews[page]?.isHidden = page != selectedPage
             guard let button = sidebarButtons.first(where: { $0.tag == page.rawValue }) else {
@@ -784,63 +1353,46 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             }
             let selected = page == selectedPage
             button.state = selected ? .on : .off
-            button.layer?.backgroundColor = selected
-                ? NSColor(calibratedRed: 0.16, green: 0.26, blue: 0.34, alpha: 1).cgColor
-                : NSColor.clear.cgColor
-            button.contentTintColor = selected
-                ? NSColor(calibratedRed: 0.40, green: 0.78, blue: 0.96, alpha: 1)
-                : NSColor(calibratedRed: 0.78, green: 0.81, blue: 0.86, alpha: 1)
+            button.contentTintColor = selected ? .labelColor : .secondaryLabelColor
+            button.font = .systemFont(ofSize: 13, weight: selected ? .bold : .medium)
         }
     }
 
     private func makeModelPage() -> NSView {
-        let page = NSView(frame: pageContainerView?.bounds ?? NSRect(x: 0, y: 0, width: 620, height: 700))
-        page.wantsLayer = true
-        page.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
-
-        let title = makeLabel("모델 및 사운드", size: 24, weight: .bold)
-        title.textColor = .white
-        title.frame = NSRect(x: 24, y: 636, width: 300, height: 32)
-        title.autoresizingMask = [.minYMargin]
+        let bounds = pageHostView?.bounds ?? NSRect(x: 0, y: 0, width: 769, height: 520)
+        modelScroll = NSScrollView(frame: bounds)
+        modelScroll.hasVerticalScroller = true
+        modelScroll.drawsBackground = false
+        modelScroll.autoresizingMask = [.width, .height]
+        let page = TopAlignedDocument(frame: NSRect(x: 0, y: 0, width: bounds.width, height: 552))
+        modelDocument = page; modelScroll.documentView = page
+        if statusLabel == nil { statusLabel = makeLabel(L10n.string("main.status.ready"), size: 12, weight: .medium) }
+        if diagnosticsLabel == nil { diagnosticsLabel = makeLabel("", size: 10, weight: .regular) }
+        let title = makeLabel(L10n.string("main.page.sound"), size: 26, weight: .bold)
+        title.frame = NSRect(x: 28, y: 24, width: 400, height: 34)
         page.addSubview(title)
-
-        statusLabel = makeLabel("대기 중", size: 13, weight: .semibold)
-        statusLabel.textColor = .white
-        statusLabel.frame = NSRect(x: 24, y: 607, width: 300, height: 22)
-        statusLabel.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(statusLabel)
-
-        diagnosticsLabel = makeLabel("XRuns 대기 중", size: 10, weight: .regular)
-        diagnosticsLabel.textColor = NSColor(calibratedRed: 0.55, green: 0.60, blue: 0.67, alpha: 1)
-        diagnosticsLabel.lineBreakMode = .byTruncatingMiddle
-        diagnosticsLabel.toolTip = "출력 underrun, 출력/분석 버퍼 drop, 엔진 재시작 횟수와 실제 캡처 프로세스를 표시합니다. 앱별 대상은 현재 tap에서 약 1초마다 조회하며, 대상 소멸이나 조회 실패도 표시합니다."
-        diagnosticsLabel.frame = NSRect(x: 24, y: 586, width: 480, height: 16)
-        diagnosticsLabel.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(diagnosticsLabel)
-
-        let modelLabel = makeLabel("모델", size: 12, weight: .semibold)
-        modelLabel.frame = NSRect(x: 24, y: 548, width: 55, height: 26)
-        modelLabel.autoresizingMask = [.minYMargin]
-        page.addSubview(modelLabel)
-
-        modelSelector = NSSegmentedControl(labels: ["Clean", "Circuit", "HighExciter"],
+        modelSelector = StudioSegmentedControl(labels: [Settings.DSPModel.clean, .circuit, .highExciter].map(\.displayName),
             trackingMode: .selectOne, target: self, action: #selector(modelChanged))
-        modelSelector.frame = NSRect(x: 84, y: 545, width: 300, height: 30)
-        modelSelector.segmentStyle = .rounded
-        let savedModelIndex = preferenceStore.integer(forKey: "selectedModel")
-        modelSelector.selectedSegment = (0...2).contains(savedModelIndex) ? savedModelIndex : 1
-        modelSelector.setAccessibilityLabel("사운드 모델")
-        modelSelector.toolTip = "Clean은 DSP bypass, Circuit은 저역 회로 모델, HighExciter는 독립 고역 배음 모델입니다. 처리 중에도 바로 선택할 수 있습니다."
-        modelSelector.autoresizingMask = [.minYMargin]
+        modelSelector.focusRingType = .none
+        modelSelector.font = .systemFont(ofSize: 13, weight: .semibold)
+        modelSelector.selectedSegment = initialModel == .clean ? 0 : initialModel == .circuit ? 1 : 2
+        modelSelector.setAccessibilityLabel(L10n.string("main.page.sound"))
         page.addSubview(modelSelector)
-
-        modelExplanationView = makeExplanationSection()
-        page.addSubview(modelExplanationView)
-        modelControlsView = makeControlSection()
-        page.addSubview(modelControlsView)
-        modelPresetsView = makePresetSection()
-        page.addSubview(modelPresetsView)
-        return page
+        toneReceiptLabel = makeLabel("", size: 11, weight: .regular)
+        toneReceiptLabel.textColor = .secondaryLabelColor
+        toneReceiptLabel.lineBreakMode = .byWordWrapping
+        toneReceiptLabel.maximumNumberOfLines = 2
+        toneReceiptLabel.setAccessibilityIdentifier("sound.audioReceipt")
+        page.addSubview(toneReceiptLabel)
+        refreshToneReceiptPresentation()
+        modelExplanationView = makeExplanationSection(); modelExplanationView.isHidden = true; page.addSubview(modelExplanationView)
+        let help = GlassHelpButton([L10n.string("main.detail.5224898d4f"), L10n.string("main.detail.c5653f1038"), L10n.string("main.detail.9dc3b9005a")].joined(separator: "\n\n"), context: L10n.string("main.page.sound"))
+        help.tag = 9801; page.addSubview(help)
+        modelControlsView = makeControlSection(); page.addSubview(modelControlsView)
+        let presetCaption = makeLabel(L10n.string("main.sound.presets"), size: 11, weight: .semibold)
+        presetCaption.textColor = .secondaryLabelColor; presetCaption.tag = 9802; page.addSubview(presetCaption)
+        modelPresetsView = makePresetSection(); page.addSubview(modelPresetsView)
+        return modelScroll
     }
 
     private func makeSpatialPage() -> NSView {
@@ -856,297 +1408,213 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         return view
     }
 
-    private func makeRoutingPage() -> NSView {
-        let page = NSView(frame: pageContainerView?.bounds ?? NSRect(x: 0, y: 0, width: 620, height: 700))
-        page.wantsLayer = true
-        page.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
 
-        let title = makeLabel("오디오 적용", size: 24, weight: .bold)
-        title.textColor = .white
-        title.frame = NSRect(x: 24, y: 636, width: 260, height: 32)
-        title.autoresizingMask = [.minYMargin]
-        page.addSubview(title)
-
-        let description = makeLabel("전체 시스템 또는 선택한 앱의 오디오 신호를 처리합니다.", size: 12.5, weight: .regular)
-        description.frame = NSRect(x: 24, y: 608, width: 500, height: 20)
-        description.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(description)
-
-        let stop = makeButton("중지", action: #selector(stopAudio))
-        stop.frame = NSRect(x: 24, y: 555, width: 110, height: 38)
-        stop.autoresizingMask = [.minYMargin]
-        stop.toolTip = "처리를 멈추고 원래 소리로 되돌립니다."
-        page.addSubview(stop)
-
-        bundleField = NSTextField(frame: NSRect(x: 24, y: 500, width: 350, height: 32))
-        bundleField.placeholderString = "예: com.tidal.desktop"
-        bundleField.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(bundleField)
-
-        routingStartAppButton = makeButton("특정 앱 적용", action: #selector(startSelectedApp))
-        routingStartAppButton.frame = NSRect(x: 390, y: 496, width: 128, height: 40)
-        routingStartAppButton.autoresizingMask = [.minYMargin, .minXMargin]
-        routingStartAppButton.toolTip = "입력한 앱과 하위 오디오 프로세스에 적용합니다. 앱이나 helper를 재실행한 뒤 처리되지 않으면 앱에서 재생을 시작하고 이 버튼을 다시 누르세요. 기존 처리를 정상 중지한 뒤 현재 프로세스를 다시 선택합니다. 앱 목록 새로고침은 캡처 대상을 바꾸지 않습니다."
-        page.addSubview(routingStartAppButton)
-
-        let listButton = makeButton("실행 중인 앱 새로고침", action: #selector(refreshApps))
-        listButton.frame = NSRect(x: 24, y: 446, width: 190, height: 34)
-        listButton.autoresizingMask = [.minYMargin]
-        page.addSubview(listButton)
-
-        routingAppsScrollView = NSScrollView(frame: NSRect(x: 24, y: 24, width: 494, height: 408))
-        routingAppsScrollView.borderType = .bezelBorder
-        routingAppsScrollView.hasVerticalScroller = true
-        routingAppsScrollView.autoresizingMask = [.width, .height]
-        appsView = NSTextView(frame: routingAppsScrollView.bounds)
-        appsView.isEditable = false
-        appsView.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
-        appsView.textColor = .white
-        appsView.backgroundColor = NSColor(calibratedRed: 0.12, green: 0.14, blue: 0.17, alpha: 1)
-        routingAppsScrollView.documentView = appsView
-        page.addSubview(routingAppsScrollView)
-        return page
-    }
 
     private func makeSettingsPage() -> NSView {
-        let page = NSView(frame: pageContainerView?.bounds ?? NSRect(x: 0, y: 0, width: 620, height: 700))
-        page.wantsLayer = true
-        page.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
-
-        let title = makeLabel("설정", size: 24, weight: .bold)
-        title.textColor = .white
-        title.frame = NSRect(x: 24, y: 636, width: 220, height: 32)
-        title.autoresizingMask = [.minYMargin]
-        page.addSubview(title)
-
-        let versionTitle = makeLabel("버전", size: 12, weight: .semibold)
-        versionTitle.frame = NSRect(x: 24, y: 574, width: 90, height: 20)
-        versionTitle.autoresizingMask = [.minYMargin]
-        page.addSubview(versionTitle)
-
-        let shortVersion =
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-            ?? "0.2.7"
-        let buildVersion =
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-            ?? "9"
-        let buildID =
-            Bundle.main.object(forInfoDictionaryKey: "LCBuildID") as? String ?? ""
-        // Show the monotonic build number (git commit count) plus the commit
-        // hash and build time, so two builds with the same 0.2.x marketing
-        // version are still distinguishable in Settings.
-        let versionText = buildID.isEmpty
-            ? "LowEnd Native Audio \(shortVersion) (build \(buildVersion))"
-            : "LowEnd Native Audio \(shortVersion) (build \(buildVersion) · \(buildID))"
-        let version = makeLabel(
-            versionText,
-            size: 12,
-            weight: .semibold
-        )
-        version.textColor = .white
-        version.frame = NSRect(x: 24, y: 544, width: 560, height: 24)
-        version.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(version)
-
-        let displayTitle = makeLabel("표시", size: 12, weight: .semibold)
-        displayTitle.frame = NSRect(x: 24, y: 490, width: 90, height: 20)
-        displayTitle.autoresizingMask = [.minYMargin]
-        page.addSubview(displayTitle)
-
-        expertModeButton = NSButton(
-            checkboxWithTitle: "자세히 보기",
-            target: self,
-            action: #selector(expertModeChanged)
-        )
-        expertModeButton.frame = NSRect(x: 24, y: 454, width: 180, height: 24)
-        expertModeButton.autoresizingMask = [.minYMargin]
+        settingsScroll = NSScrollView(frame: pageHostView.bounds)
+        settingsScroll.hasVerticalScroller = true
+        settingsScroll.drawsBackground = false
+        settingsScroll.autoresizingMask = [.width, .height]
+        settingsDocument = TopAlignedDocument(frame: NSRect(x: 0, y: 0, width: pageHostView.bounds.width, height: 340))
+        settingsScroll.documentView = settingsDocument
+        let languageSurface = MonochromeSurface(frame: NSRect(x: 28, y: 108, width: pageHostView.bounds.width - 56, height: 124), radius: 14, well: true)
+        languageSurface.autoresizingMask = [.width]; settingsDocument.addSubview(languageSurface)
+        let title = makeLabel(L10n.string("main.settings.title"), size: 26, weight: .bold)
+        title.frame = NSRect(x: 28, y: 24, width: 500, height: 32); settingsDocument.addSubview(title)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.4.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "LCBuildID") as? String ?? "Development"
+        let versionLabel = makeLabel("TimbreDock \(version) · \(build)", size: 11, weight: .medium)
+        versionLabel.frame = NSRect(x: 28, y: 66, width: 680, height: 22)
+        versionLabel.lineBreakMode = .byTruncatingMiddle; versionLabel.autoresizingMask = [.width]
+        settingsDocument.addSubview(versionLabel)
+        let language = makeLabel(L10n.string("main.settings.language.label"), size: 13, weight: .semibold)
+        language.frame = NSRect(x: 48, y: 128, width: 160, height: 24); settingsDocument.addSubview(language)
+        languagePopup = StudioPopUpButton(frame: NSRect(x: 220, y: 120, width: 220, height: 40), pullsDown: false)
+        for language in AppLanguage.allCases {
+            languagePopup.addItem(withTitle: language.nativeName)
+            languagePopup.lastItem?.representedObject = language.rawValue
+        }
+        languagePopup.selectItem(at: AppLanguage.fromStoredValue(preferenceStore.string(forKey: AppLanguage.preferenceKey)) == .english ? 0 : 1)
+        languagePopup.target = self; languagePopup.action = #selector(languageChanged)
+        languagePopup.setAccessibilityLabel(L10n.string("main.settings.language.accessibility"))
+        settingsDocument.addSubview(languagePopup)
+        languageStatusLabel = makeLabel("", size: 12, weight: .regular)
+        languageStatusLabel.frame = NSRect(x: 48, y: 178, width: 632, height: 38)
+        languageStatusLabel.lineBreakMode = .byWordWrapping; languageStatusLabel.maximumNumberOfLines = 0
+        languageStatusLabel.autoresizingMask = [.width]
+        languageStatusLabel.setAccessibilityIdentifier("settings.language.status")
+        settingsDocument.addSubview(languageStatusLabel)
+        refreshLanguagePresentation()
+        let languageHelp = GlassHelpButton(L10n.string("main.settings.language.note"), context: L10n.string("main.settings.language.label"))
+        languageHelp.frame = NSRect(x: 452, y: 126, width: 28, height: 28)
+        settingsDocument.addSubview(languageHelp)
+        expertModeButton = NSButton(checkboxWithTitle: L10n.string("main.settings.advanced"), target: self, action: #selector(expertModeChanged))
         expertModeButton.state = expertModeEnabled ? .on : .off
-        expertModeButton.toolTip = "오른쪽 위 포맷 표시에 Source, Tap, Engine, DAC 샘플레이트와 오버샘플링 정보를 자세히 보여줍니다."
-        page.addSubview(expertModeButton)
-
-        let note = makeLabel(
-            "끄면 재생 음원, 출력 포맷, 적용 모델만 간결하게 표시합니다.",
-            size: 12,
-            weight: .regular
-        )
-        note.frame = NSRect(x: 24, y: 426, width: 480, height: 20)
-        note.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(note)
-
-        automaticRateMatchButton = NSButton(
-            checkboxWithTitle: "자동 Rate Match",
-            target: self,
-            action: #selector(automaticRateMatchChanged)
-        )
-        automaticRateMatchButton.frame = NSRect(x: 24, y: 394, width: 320, height: 24)
-        automaticRateMatchButton.autoresizingMask = [.minYMargin]
-        automaticRateMatchButton.state = automaticRateMatchingEnabled ? .on : .off
-        automaticRateMatchButton.toolTip = "감지된 Apple Music/TIDAL Source rate에 맞춰 기본 출력 DAC의 Nominal Sample Rate를 변경합니다. 전환 시 하드웨어 relock으로 약 1~2초 무음이 발생합니다. 일반적으로는 DAC rate 고정 + macOS 시스템 SRC가 무음 없이 더 부드럽게 동작합니다."
-        page.addSubview(automaticRateMatchButton)
-
-        let rateMatchNote = makeLabel(
-            "트랙 전환 시 하드웨어 relock으로 약 1~2초 무음이 발생합니다.",
-            size: 11,
-            weight: .regular
-        )
-        rateMatchNote.frame = NSRect(x: 24, y: 372, width: 480, height: 18)
-        rateMatchNote.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(rateMatchNote)
-        return page
+        expertModeButton.frame = NSRect(x: 28, y: 252, width: 240, height: 28)
+        expertModeButton.toolTip = L10n.string("main.settings.advanced.tooltip")
+        settingsDocument.addSubview(expertModeButton)
+        advancedSettingsView = TopAlignedDocument(frame: NSRect(x: 4, y: 302, width: 720, height: 970))
+        settingsDocument.addSubview(advancedSettingsView)
+        let bundleCaption = makeLabel(L10n.string("main.header.target.advanced"), size: 12, weight: .semibold)
+        bundleCaption.frame = NSRect(x: 24, y: 0, width: 600, height: 22); advancedSettingsView.addSubview(bundleCaption)
+        bundleField = NSTextField(frame: NSRect(x: 24, y: 30, width: 470, height: 28))
+        bundleField.placeholderString = L10n.string("main.header.target.bundlePlaceholder")
+        bundleField.target = self; bundleField.action = #selector(commitBundleTarget)
+        bundleField.toolTip = L10n.string("main.bundleField.tooltip")
+        bundleField.setAccessibilityLabel(L10n.string("main.bundleField.accessibility"))
+        advancedSettingsView.addSubview(bundleField)
+        let use = makeButton(L10n.string("main.button.useBundleID"), action: #selector(commitBundleTarget))
+        use.frame = NSRect(x: 506, y: 28, width: 190, height: 30); advancedSettingsView.addSubview(use)
+        sourceFormatLabel = makeLabel("Source: unknown", size: 11, weight: .medium)
+        formatLabel = makeLabel("Tap / Engine / DAC: —", size: 11, weight: .medium)
+        oversamplingLabel = makeLabel("", size: 11, weight: .medium)
+        rateMatchPreviewLabel = makeLabel("", size: 11, weight: .medium)
+        diagnosticsLabel = makeLabel("", size: 10, weight: .regular)
+        for (i, label) in [sourceFormatLabel!, formatLabel!, oversamplingLabel!, rateMatchPreviewLabel!, diagnosticsLabel!].enumerated() {
+            label.frame = NSRect(x: 24, y: 80 + CGFloat(i) * 22, width: 672, height: 20)
+            label.lineBreakMode = .byTruncatingMiddle; label.autoresizingMask = [.width]
+            advancedSettingsView.addSubview(label)
+        }
+        let diagnostics = makeDiagnosticsPage()
+        diagnostics.frame = NSRect(x: 0, y: 202, width: 720, height: 720)
+        diagnostics.autoresizingMask = [.width]; advancedSettingsView.addSubview(diagnostics)
+        layoutSettingsPage()
+        return settingsScroll
     }
 
     // MARK: - Output Conditioning page
 
     private func makeOutputConditioningPage() -> NSView {
-        let page = NSView(frame: pageContainerView?.bounds ?? NSRect(x: 0, y: 0, width: 620, height: 700))
+        let page = TopAlignedDocument(frame: NSRect(x: 0, y: 0, width: pageHostView?.bounds.width ?? 769, height: 660))
+        outputDocument = page
         page.wantsLayer = true
-        page.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
+        page.layer?.backgroundColor = NSColor.clear.cgColor
 
-        let title = makeLabel("출력 컨디셔닝", size: 24, weight: .bold)
-        title.textColor = .white
-        title.frame = NSRect(x: 24, y: 636, width: 320, height: 32)
-        title.autoresizingMask = [.minYMargin]
+        for tag in 9921...9923 {
+            let section = MonochromeSurface(frame: .zero, radius: 14, well: true)
+            section.tag = tag; page.addSubview(section)
+        }
+        let title = makeLabel(outputString("main.output.title", "Output"), size: 26, weight: .bold)
+        title.textColor = GlassDesign.ink
+        title.tag = OutputPageTag.title.rawValue
         page.addSubview(title)
 
-        let enableTitle = makeLabel("활성화", size: 12, weight: .semibold)
-        enableTitle.frame = NSRect(x: 24, y: 596, width: 120, height: 20)
-        enableTitle.autoresizingMask = [.minYMargin]
-        page.addSubview(enableTitle)
+        let subtitle = makeOutputWrappingLabel(
+            outputString("main.output.subtitle", "One output rate mode at a time. Standard is the default."),
+            size: 12, weight: .regular)
+        subtitle.tag = OutputPageTag.subtitle.rawValue
+        page.addSubview(subtitle)
 
-        outputConditioningEnableButton = NSButton(
-            checkboxWithTitle: "출력 컨디셔닝 사용",
-            target: self,
-            action: #selector(outputConditioningEnableChanged)
-        )
-        outputConditioningEnableButton.frame = NSRect(x: 24, y: 566, width: 320, height: 24)
-        outputConditioningEnableButton.autoresizingMask = [.minYMargin]
-        outputConditioningEnableButton.state = outputConditioningEnabled ? .on : .off
-        outputConditioningEnableButton.toolTip = "출력 직전 신호를 처리합니다. 기본값은 꺼짐(Bypass)입니다. PCM Oversampling 2×는 출력 장치를 2배 샘플레이트로 전환하는 실험 기능입니다(44.1k→88.2k, 48k→96k). 전환 시 짧은 무음이 발생합니다. 실패하면 원래 PCM 구성을 복구하며, 복구에 실패하면 중지 미완료 상태와 재시도 안내를 표시합니다."
-        page.addSubview(outputConditioningEnableButton)
+        // Rate mode — exactly one of standard / upsample2x / matchSource.
+        let modeCaption = makeLabel(outputString("main.output.mode.label", "Output Rate Mode"), size: 12, weight: .semibold)
+        modeCaption.tag = OutputPageTag.modeCaption.rawValue
+        page.addSubview(modeCaption)
 
-        outputConditioningModePopup = makeConditioningPopup(
-            titles: OutputConditioningMode.allCases.map { mode in
-                mode == .pcmOversampling
-                    ? "PCM Oversampling · DAC 출력 변환"
-                    : mode == .experimentalDSD
-                    ? "\(mode.displayName) (오프라인/테스트 전용)"
-                    : mode.displayName
-            },
-            action: #selector(outputConditioningModeChanged),
-            y: 512
-        )
-        page.addSubview(makeConditioningCaption("출력 모드", y: 536))
-        page.addSubview(outputConditioningModePopup)
-        selectConditioningPopup(outputConditioningModePopup, forRaw: outputConditioningModeRaw,
-                                in: OutputConditioningMode.allCases.map { $0.rawValue })
-
-        outputConditioningFactorPopup = makeConditioningPopup(
-            titles: OutputConditioningParameters.allowedOversamplingFactors.map { factor in
-                factor == 2 ? "2× (Live 가능)" : "\(factor)× (오프라인 전용)"
-            },
-            action: #selector(outputConditioningFactorChanged),
-            y: 458
-        )
-        page.addSubview(makeConditioningCaption("DAC 출력 배수", y: 482))
-        outputConditioningFactorPopup.toolTip = "모델·공간 처리 후 전체 PCM의 출력 레이트를 바꿉니다. HighExciter 내부 배음 생성 배율과 독립적입니다. 실시간 출력은 지원 장치의 2×만 적용됩니다."
-        page.addSubview(outputConditioningFactorPopup)
-        if let index = OutputConditioningParameters.allowedOversamplingFactors.firstIndex(of: outputConditioningFactor) {
-            outputConditioningFactorPopup.selectItem(at: index)
+        outputRateModePopup = StudioPopUpButton(frame: .zero, pullsDown: false)
+        outputRateModePopup.addItems(withTitles: OutputRateMode.allCases.map { $0.title })
+        outputRateModePopup.target = self
+        outputRateModePopup.action = #selector(outputRateModeChanged)
+        if let index = OutputRateMode.allCases.firstIndex(of: outputRateMode) {
+            outputRateModePopup.selectItem(at: index)
         }
+        page.addSubview(outputRateModePopup)
+
+        outputModeDetailLabel = makeOutputWrappingLabel(outputRateMode.detail, size: 11, weight: .regular)
+        outputModeDetailLabel.textColor = GlassDesign.secondary
+        page.addSubview(outputModeDetailLabel)
+
+        outputMigrationNoticeLabel = makeOutputWrappingLabel("", size: 11, weight: .regular)
+        outputMigrationNoticeLabel.textColor = GlassDesign.secondary
+        page.addSubview(outputMigrationNoticeLabel)
+        outputMigrationDismissButton = NSButton(title: L10n.string("main.output.notice.dismiss"),
+            target: self, action: #selector(dismissOutputMigrationNotice))
+        outputMigrationDismissButton.bezelStyle = .rounded
+        page.addSubview(outputMigrationDismissButton)
+
+        // Filter — Short/Long only (linearPhaseShort, linearPhaseLong).
+        let filterCaption = makeLabel(outputString("main.output.filter.label", "Filter"), size: 12, weight: .semibold)
+        filterCaption.tag = OutputPageTag.filterCaption.rawValue
+        page.addSubview(filterCaption)
 
         outputConditioningFilterPopup = makeConditioningPopup(
-            titles: ResamplingFilterMode.allCases.map { $0.displayName },
+            titles: [outputString("main.output.filter.short", "Short"),
+                     outputString("main.output.filter.long", "Long")],
             action: #selector(outputConditioningFilterChanged),
-            y: 404
-        )
-        page.addSubview(makeConditioningCaption("필터 모드", y: 428))
+            y: 0)
+        outputConditioningFilterPopup.toolTip = outputString(
+            "main.output.filter.tooltip",
+            "Polyphase interpolation filter for 2x upsampling. Short has lower latency; Long cuts sharper with more attenuation.")
+        // minimumPhase (raw 2) is no longer offered; it displays as Short and the
+        // migration notice below explains that, matching main.output.notice.legacyMinimumPhase.
+        let filterIndex = outputConditioningFilterRaw == ResamplingFilterMode.linearPhaseLong.rawValue ? 1 : 0
+        outputConditioningFilterPopup.selectItem(at: filterIndex)
+        if outputConditioningFilterRaw != 0 && outputConditioningFilterRaw != 1 {
+            outputMigrationNoticeLabel.stringValue = outputString(
+                "main.output.notice.legacyMinimumPhase",
+                "The saved minimum-phase filter was migrated to Short.")
+        }
         page.addSubview(outputConditioningFilterPopup)
-        selectConditioningPopup(outputConditioningFilterPopup, forRaw: outputConditioningFilterRaw,
-                                in: ResamplingFilterMode.allCases.map { $0.rawValue })
 
-        outputConditioningHeadroomCaption = makeConditioningCaption("헤드룸", y: 374)
-        outputConditioningHeadroomCaption.frame.size.width = max(0, page.bounds.width - 48)
-        outputConditioningHeadroomCaption.autoresizingMask = [.minYMargin, .width]
+        let filterDetail = makeOutputWrappingLabel(
+            outputString("main.output.filter.tooltip",
+                         "Polyphase interpolation filter for 2x upsampling. Short has lower latency; Long cuts sharper with more attenuation."),
+            size: 11, weight: .regular)
+        filterDetail.textColor = GlassDesign.secondary
+        filterDetail.tag = OutputPageTag.filterDetail.rawValue
+        page.addSubview(filterDetail)
+
+        // Upsampling gain (-12…0 dB, existing stored value).
+        outputConditioningHeadroomCaption = makeLabel(outputString("main.output.gain.label", "Upsampling Gain"), size: 12, weight: .semibold)
         page.addSubview(outputConditioningHeadroomCaption)
+
         outputConditioningHeadroomSlider = NSSlider(
             value: outputConditioningHeadroomDB,
             minValue: -12,
             maxValue: 0,
             target: self,
-            action: #selector(outputConditioningHeadroomChanged)
-        )
+            action: #selector(outputConditioningHeadroomChanged))
         outputConditioningHeadroomSlider.isContinuous = true
-        outputConditioningHeadroomSlider.setAccessibilityLabel("2× 출력 헤드룸")
-        outputConditioningHeadroomSlider.frame = NSRect(x: 24, y: 348, width: max(120, page.bounds.width - 144), height: 24)
-        outputConditioningHeadroomSlider.autoresizingMask = [.minYMargin, .width]
+        outputConditioningHeadroomSlider.trackFillColor = .labelColor
+        outputConditioningHeadroomSlider.setAccessibilityLabel(outputString("main.output.gain.accessibility", "Upsampling gain"))
         page.addSubview(outputConditioningHeadroomSlider)
-        outputConditioningHeadroomValueLabel = makeLabel(
-            formatDbText(outputConditioningHeadroomDB),
-            size: 12, weight: .regular
-        )
+
+        outputConditioningHeadroomValueLabel = makeLabel(formatDbText(outputConditioningHeadroomDB), size: 12, weight: .regular)
+        outputConditioningHeadroomValueLabel.font = .monospacedDigitSystemFont(ofSize: 20, weight: .medium)
         outputConditioningHeadroomValueLabel.alignment = .right
-        outputConditioningHeadroomValueLabel.frame = NSRect(x: page.bounds.width - 104, y: 348, width: 80, height: 20)
-        outputConditioningHeadroomValueLabel.autoresizingMask = [.minYMargin, .minXMargin]
         page.addSubview(outputConditioningHeadroomValueLabel)
 
-        outputConditioningDitherButton = NSButton(
-            checkboxWithTitle: "디더",
-            target: self,
-            action: #selector(outputConditioningDitherChanged)
-        )
-        outputConditioningDitherButton.frame = NSRect(x: 24, y: 314, width: 160, height: 24)
-        outputConditioningDitherButton.autoresizingMask = [.minYMargin]
-        outputConditioningDitherButton.state = outputConditioningDither ? .on : .off
-        page.addSubview(outputConditioningDitherButton)
+        let gainNote = makeOutputWrappingLabel("", size: 11, weight: .regular)
+        gainNote.textColor = GlassDesign.secondary
+        gainNote.tag = OutputPageTag.gainNote.rawValue
+        page.addSubview(gainNote)
 
-        outputConditioningNoiseShapeButton = NSButton(
-            checkboxWithTitle: "노이즈 셰이핑",
-            target: self,
-            action: #selector(outputConditioningNoiseShapeChanged)
-        )
-        outputConditioningNoiseShapeButton.frame = NSRect(x: 190, y: 314, width: 200, height: 24)
-        outputConditioningNoiseShapeButton.autoresizingMask = [.minYMargin]
-        outputConditioningNoiseShapeButton.state = outputConditioningNoiseShape ? .on : .off
-        page.addSubview(outputConditioningNoiseShapeButton)
-
-        page.addSubview(makeConditioningCaption("DSD 모드 (오프라인/테스트 전용 — 실시간 미지원)", y: 282))
-        outputConditioningDSDPopup = makeConditioningPopup(
-            titles: DSDMode.allCases.map { $0.displayName },
-            action: #selector(outputConditioningDSDChanged),
-            y: 258
-        )
-        page.addSubview(outputConditioningDSDPopup)
-        selectConditioningPopup(outputConditioningDSDPopup, forRaw: outputConditioningDSDRaw,
-                                in: DSDMode.allCases.map { $0.rawValue })
-
-        let warning = makeLabel(
-            "DSD/DoP는 현재 오프라인/테스트 전용이며 실시간 출력에 연결되어 있지 않습니다. 아래 carrier 표시는 DAC가 해당 rate(176.4 / 352.8 / 705.6 kHz)를 지원하는지의 참고용이며, 실제 DSD 출력으로 전환되지는 않습니다. 실시간 출력은 PCM(PCM Oversampling 2× 지원)으로만 동작합니다.",
-            size: 11, weight: .regular
-        )
-        warning.lineBreakMode = .byWordWrapping
-        warning.maximumNumberOfLines = 0
-        warning.frame = NSRect(x: 24, y: 206, width: 540, height: 44)
-        warning.autoresizingMask = [.minYMargin, .width]
-        page.addSubview(warning)
-
-        outputConditioningStatusLabel = makeLabel("", size: 12, weight: .regular)
-        outputConditioningStatusLabel.textColor = NSColor(calibratedRed: 0.62, green: 0.68, blue: 0.75, alpha: 1)
-        outputConditioningStatusLabel.lineBreakMode = .byWordWrapping
-        outputConditioningStatusLabel.maximumNumberOfLines = 0
-        outputConditioningStatusLabel.frame = NSRect(x: 24, y: 150, width: 540, height: 44)
-        outputConditioningStatusLabel.autoresizingMask = [.minYMargin, .width]
+        // Status + runtime text: content is produced by the existing root handlers.
+        outputConditioningStatusLabel = makeOutputWrappingLabel("", size: 12, weight: .regular)
+        outputConditioningStatusLabel.textColor = GlassDesign.secondary
         page.addSubview(outputConditioningStatusLabel)
 
-        outputConditioningRuntimeLabel = makeLabel("", size: 12, weight: .semibold)
-        outputConditioningRuntimeLabel.lineBreakMode = .byWordWrapping
-        outputConditioningRuntimeLabel.maximumNumberOfLines = 3
-        outputConditioningRuntimeLabel.frame = NSRect(x: 24, y: 78, width: max(0, page.bounds.width - 48), height: 64)
-        outputConditioningRuntimeLabel.autoresizingMask = [.minYMargin, .width]
+        outputConditioningRuntimeLabel = makeOutputWrappingLabel("", size: 12, weight: .semibold)
         page.addSubview(outputConditioningRuntimeLabel)
 
-        applyOutputConditioningControlEnabledState()
-        updateOutputConditioningStatus()
-        return page
+        refreshOutputGainNote()
+        layoutOutputConditioningPage(page)
+        subtitle.isHidden = true
+        outputModeDetailLabel.isHidden = true
+        filterDetail.isHidden = true
+        gainNote.isHidden = true
+        for (tag, message) in [(9901, subtitle.stringValue), (9902, outputRateMode.detail),
+                               (9903, filterDetail.stringValue), (9904, gainNote.stringValue)] {
+            let context = tag == 9901 ? title.stringValue : tag == 9902 ? modeCaption.stringValue
+                : tag == 9903 ? filterCaption.stringValue : outputConditioningHeadroomCaption.stringValue
+            let help = GlassHelpButton(message, context: context); help.tag = tag; page.addSubview(help)
+        }
+        outputScroll = NSScrollView(frame: pageHostView?.bounds ?? NSRect(x: 0, y: 0, width: 769, height: 490))
+        outputScroll.hasVerticalScroller = true
+        outputScroll.drawsBackground = false
+        outputScroll.autoresizingMask = [.width, .height]
+        outputScroll.documentView = page
+        outputScroll.contentView.scroll(to: .zero)
+        return outputScroll
     }
 
     /// Read-only Diagnostics/Status page. Every value is sourced from existing
@@ -1156,51 +1624,55 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private func makeDiagnosticsPage() -> NSView {
         let page = NSView(frame: pageContainerView?.bounds ?? NSRect(x: 0, y: 0, width: 620, height: 700))
         page.wantsLayer = true
-        page.layer?.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.09, blue: 0.11, alpha: 1).cgColor
+        page.layer?.backgroundColor = NSColor.clear.cgColor
 
-        let title = makeLabel("진단 / 상태", size: 24, weight: .bold)
-        title.textColor = .white
+        let title = makeLabel(L10n.string("main.detail.771f6e8e1a"), size: 24, weight: .bold)
+        title.textColor = GlassDesign.ink
         title.frame = NSRect(x: 24, y: 636, width: 320, height: 32)
         title.autoresizingMask = [.minYMargin]
         page.addSubview(title)
 
         let intro = makeLabel(
-            "오디오 콜백에 영향을 주지 않고 기존 상태 스냅샷을 읽어 표시합니다. 1초마다 갱신됩니다.",
+            L10n.string("main.detail.03c9cc221a"),
             size: 11, weight: .regular
         )
-        intro.textColor = NSColor(calibratedRed: 0.55, green: 0.60, blue: 0.67, alpha: 1)
+        intro.textColor = GlassDesign.secondary
         intro.lineBreakMode = .byWordWrapping
         intro.maximumNumberOfLines = 0
         intro.frame = NSRect(x: 24, y: 614, width: 540, height: 28)
         intro.autoresizingMask = [.minYMargin, .width]
+        intro.isHidden = true
         page.addSubview(intro)
+        let help = GlassHelpButton(intro.stringValue, context: L10n.string("main.detail.771f6e8e1a"))
+        help.frame = NSRect(x: page.bounds.width - 54, y: 636, width: 28, height: 28)
+        help.autoresizingMask = [.minXMargin, .minYMargin]; page.addSubview(help)
 
-        page.addSubview(makeDiagSection("샘플레이트 · 포맷", y: 584))
-        diagTapValue = addDiagRow(to: page, caption: "Tap 샘플레이트", value: "—", y: 560)
-        diagEngineValue = addDiagRow(to: page, caption: "엔진(처리) 샘플레이트", value: "—", y: 536)
-        diagDeviceValue = addDiagRow(to: page, caption: "출력 장치 샘플레이트", value: "—", y: 512)
-        diagFormatValue = addDiagRow(to: page, caption: "출력 포맷(비트 깊이/샘플 타입)", value: "—", y: 488)
+        page.addSubview(makeDiagSection(L10n.string("main.detail.296644b48a"), y: 584))
+        diagTapValue = addDiagRow(to: page, caption: L10n.string("main.detail.3fd630b245"), value: "—", y: 560)
+        diagEngineValue = addDiagRow(to: page, caption: L10n.string("main.detail.8e6ea54dd2"), value: "—", y: 536)
+        diagDeviceValue = addDiagRow(to: page, caption: L10n.string("main.detail.3c8628cb58"), value: "—", y: 512)
+        diagFormatValue = addDiagRow(to: page, caption: L10n.string("main.detail.add87c3d28"), value: "—", y: 488)
 
         page.addSubview(makeDiagSection("Output Conditioning", y: 452))
-        diagConditioningValue = addDiagRow(to: page, caption: "상태", value: "Off", y: 428)
-        diagFallbackValue = addDiagRow(to: page, caption: "폴백 사유", value: "—", y: 404)
+        diagConditioningValue = addDiagRow(to: page, caption: L10n.string("main.detail.e10195a123"), value: "Off", y: 428)
+        diagFallbackValue = addDiagRow(to: page, caption: L10n.string("main.detail.45a644b1c7"), value: "—", y: 404)
         diagFallbackValue.lineBreakMode = .byWordWrapping
         diagFallbackValue.maximumNumberOfLines = 0
-        diagFallbackValue.frame = NSRect(x: 224, y: 392, width: 360, height: 36)
+        diagFallbackValue.frame = NSRect(x: 320, y: 392, width: max(200, page.bounds.width - 344), height: 36)
 
-        page.addSubview(makeDiagSection("HighExciter 오버샘플링", y: 372))
-        diagHighExciterValue = addDiagRow(to: page, caption: "실제 적용 모드", value: "—", y: 348)
+        page.addSubview(makeDiagSection(L10n.string("main.detail.259721cf3b"), y: 372))
+        diagHighExciterValue = addDiagRow(to: page, caption: L10n.string("main.diag.mode"), value: "—", y: 348)
 
-        page.addSubview(makeDiagSection("XRun 카운터", y: 312))
-        diagXRunValue = addDiagRow(to: page, caption: "underrun / drop / 분석 drop", value: "0 / 0 / 0", y: 288)
-        diagRestartValue = addDiagRow(to: page, caption: "엔진 재시작", value: "0", y: 264)
+        page.addSubview(makeDiagSection(L10n.string("main.diag.section.xrun"), y: 312))
+        diagXRunValue = addDiagRow(to: page, caption: L10n.string("main.diag.xrun"), value: "0 / 0 / 0", y: 288)
+        diagRestartValue = addDiagRow(to: page, caption: L10n.string("main.diag.restarts"), value: "0", y: 264)
 
-        page.addSubview(makeDiagSection("출력 장치", y: 224))
-        diagDeviceNameValue = addDiagRow(to: page, caption: "이름 · ID", value: "—", y: 200)
+        page.addSubview(makeDiagSection(L10n.string("main.diag.section.device"), y: 224))
+        diagDeviceNameValue = addDiagRow(to: page, caption: L10n.string("main.diag.deviceName"), value: "—", y: 200)
 
-        page.addSubview(makeDiagSection("캡처 대상", y: 160))
-        diagCaptureValue = addDiagRow(to: page, caption: "실제 캡처 프로세스", value: "—", y: 136)
-        diagAudioFlowValue = addDiagRow(to: page, caption: "오디오 데이터", value: "—", y: 108)
+        page.addSubview(makeDiagSection(L10n.string("main.diag.section.capture"), y: 160))
+        diagCaptureValue = addDiagRow(to: page, caption: L10n.string("main.diag.capture"), value: "—", y: 136)
+        diagAudioFlowValue = addDiagRow(to: page, caption: L10n.string("main.diag.audioFlow"), value: "—", y: 108)
 
         refreshDiagnosticsPanel()
         refreshAudioFlowPresentation()
@@ -1209,7 +1681,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
     private func makeDiagSection(_ text: String, y: CGFloat) -> NSTextField {
         let label = makeLabel(text, size: 13, weight: .semibold)
-        label.textColor = NSColor(calibratedRed: 0.55, green: 0.78, blue: 0.96, alpha: 1)
+        label.textColor = GlassDesign.secondary
         label.frame = NSRect(x: 24, y: y, width: 540, height: 20)
         label.autoresizingMask = [.minYMargin, .width]
         return label
@@ -1218,12 +1690,13 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     @discardableResult
     private func addDiagRow(to page: NSView, caption: String, value: String, y: CGFloat) -> NSTextField {
         let cap = makeLabel(caption, size: 12, weight: .regular)
-        cap.textColor = NSColor(calibratedRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)
-        cap.frame = NSRect(x: 24, y: y, width: 200, height: 18)
+        cap.textColor = GlassDesign.secondary
+        cap.frame = NSRect(x: 24, y: y, width: 280, height: 18)
+        cap.tag = 9970
         cap.autoresizingMask = [.minYMargin]
         page.addSubview(cap)
         let val = makeLabel(value, size: 12, weight: .regular)
-        val.frame = NSRect(x: 224, y: y, width: 360, height: 18)
+        val.frame = NSRect(x: 320, y: y, width: max(200, page.bounds.width - 344), height: 18)
         val.autoresizingMask = [.minYMargin, .width]
         val.lineBreakMode = .byTruncatingTail
         page.addSubview(val)
@@ -1235,8 +1708,9 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     /// before the engine starts. Counters + device identity are filled by
     /// updateDiagnostics (1 Hz); this handles the notification-driven rows.
     private func refreshDiagnosticsPanel() {
-        // The output page must refresh even when Diagnostics was never opened.
-        refreshOutputConditioningHeadroomState()
+        // Refresh all output labels even when Diagnostics was never opened.
+        refreshToneReceiptPresentation()
+        updateOutputConditioningStatus()
         guard diagTapValue != nil else { return }
         diagTapValue.stringValue = formatDiagRate(currentTapSampleRate)
         diagEngineValue.stringValue = formatDiagRate(currentProcessingSampleRate)
@@ -1256,25 +1730,25 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         }
         let conditioningText: String
         if currentStopFailure != nil {
-            conditioningText = "중지 미완료 · 재시도 필요"
+            conditioningText = L10n.string("main.state.stopFailed")
         } else if currentProcessingFailure != nil {
-            conditioningText = "처리 중단 · 중지 후 다시 적용"
+            conditioningText = L10n.string("main.state.processingFailed")
         } else if !outputConditioningEnabled {
             conditioningText = "Off"
         } else if currentLivePCM2xActive {
             conditioningText = "PCM 2× active"
         } else if !currentLivePCM2xFallback.isEmpty {
-            conditioningText = "2× 미적용 · 상태 확인"
+            conditioningText = L10n.string("main.state.notApplied")
         } else {
-            conditioningText = isPCM2xArmed ? "PCM 2× 대기" : "Bypass (선택 기능 Live 미적용)"
+            conditioningText = isPCM2xArmed ? L10n.string("main.state.pcm2xPending") : L10n.string("main.state.bypass")
         }
         diagConditioningValue.stringValue = conditioningText
         let reason = currentStopFailure ?? currentProcessingFailure ?? currentLivePCM2xFallback
         let hasFallback = !reason.isEmpty
         diagFallbackValue.stringValue = hasFallback ? reason : "—"
         diagFallbackValue.textColor = hasFallback
-            ? NSColor(calibratedRed: 0.95, green: 0.76, blue: 0.40, alpha: 1)
-            : NSColor(calibratedRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)
+            ? GlassDesign.secondary
+            : GlassDesign.secondary
 
         diagHighExciterValue.stringValue = highExciterDiagnosticsText()
     }
@@ -1284,14 +1758,14 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     /// mode via the same pure policy used by updateOversamplingIndicator.
     private func highExciterDiagnosticsText() -> String {
         guard selectedDSPModel() == .highExciter else { return "—" }
-        guard let sampleRate = currentTapSampleRate else { return "포맷 대기 중" }
+        guard let sampleRate = currentTapSampleRate else { return L10n.string("main.diag.highExciter.waiting") }
         let resolution = ExciterOversamplingPolicy.resolve(
             processingSampleRate: sampleRate,
             mode: exciterOversamplingMode
         )
         let internalText = formatDiagRate(resolution.internalSampleRate)
         if resolution.isSafetyLimited {
-            return "safety-limited · 요청 \(resolution.requestedFactor)× → 적용 \(resolution.effectiveFactor)× (\(internalText))"
+            return L10n.format("main.diag.highExciter.safety", String(describing: resolution.requestedFactor), String(describing: resolution.effectiveFactor), String(describing: internalText))
         }
         return "\(resolution.effectiveFactor)× (\(internalText))"
     }
@@ -1316,7 +1790,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
     private func makeConditioningPopup(titles: [String], action: Selector, y: CGFloat) -> NSPopUpButton {
         let width = max(220, (pageContainerView?.bounds.width ?? 620) - 48)
-        let popup = NSPopUpButton(frame: NSRect(x: 24, y: y, width: width, height: 26), pullsDown: false)
+        let popup = StudioPopUpButton(frame: NSRect(x: 24, y: y, width: width, height: 26), pullsDown: false)
         popup.autoresizingMask = [.minYMargin, .width]
         popup.addItems(withTitles: titles)
         popup.target = self
@@ -1331,17 +1805,37 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func applyOutputConditioningControlEnabledState() {
-        let on = outputConditioningEnabled
-        outputConditioningModePopup?.isEnabled = on
-        let pcm = OutputConditioningMode(rawValue: outputConditioningModeRaw) == .pcmOversampling
-        outputConditioningFactorPopup?.isEnabled = on && pcm
-        outputConditioningFilterPopup?.isEnabled = on && pcm && outputConditioningFactor == 2
+        outputRateModePopup?.isEnabled = pendingAudioOperation == nil
+        outputConditioningFilterPopup?.isEnabled = outputConditioningEnabled && pendingAudioOperation == nil
         refreshOutputConditioningHeadroomState()
-        outputConditioningDitherButton?.isEnabled = false
-        outputConditioningNoiseShapeButton?.isEnabled = false
-        outputConditioningDitherButton?.toolTip = "현재 Float32 live 출력에는 적용되지 않습니다."
-        outputConditioningNoiseShapeButton?.toolTip = "현재 Float32 live 출력에는 적용되지 않습니다."
-        // DSD gating depends on device capability (set in updateOutputConditioningStatus).
+    }
+
+    private var outputGainStateText: String {
+        let requests2x = outputConditioningEnabled
+            && OutputConditioningMode(rawValue: outputConditioningModeRaw) == .pcmOversampling
+            && outputConditioningFactor == 2
+        let failed = !currentLivePCM2xActive && !currentLivePCM2xFallback.isEmpty
+        let state: String
+        if pendingAudioOperation != nil {
+            state = L10n.string("main.output.state.pendingOperation")
+        } else if currentStopFailure != nil {
+            state = L10n.string("main.output.state.stopFailed")
+        } else if currentProcessingFailure != nil {
+            state = L10n.string("main.output.state.processingFailed")
+        } else if currentLivePCM2xActive && !requests2x {
+            state = L10n.string("main.output.state.release2x")
+        } else if !outputConditioningEnabled {
+            state = L10n.string("main.output.state.off")
+        } else if !requests2x {
+            state = L10n.string("main.detail.05cdaf26c6")
+        } else if currentLivePCM2xActive {
+            state = L10n.string("main.output.state.active")
+        } else if failed {
+            state = L10n.string("main.output.state.failed")
+        } else {
+            state = L10n.string("main.output.state.armed")
+        }
+        return state
     }
 
     private func refreshOutputConditioningHeadroomState() {
@@ -1354,41 +1848,22 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         // The requested gain remains editable for the next successful run.
         // Editing an inactive route saves it without retrying a device transition.
         slider.isEnabled = outputConditioningEnabled
-        let state: String
-        if pendingAudioOperation != nil {
-            state = "시작·중지 처리 중 · 설정 저장"
-        } else if currentStopFailure != nil {
-            state = "중지 미완료 · 설정 저장"
-        } else if currentProcessingFailure != nil {
-            state = "처리 중단 · 설정 저장"
-        } else if currentLivePCM2xActive && !requests2x {
-            state = "2× 해제 대기 · 미적용"
-        } else if !outputConditioningEnabled {
-            state = "꺼짐 · 미적용"
-        } else if !requests2x {
-            state = "현재 모드에서 미적용 · 설정 저장"
-        } else if currentLivePCM2xActive {
-            state = "2× 출력 중"
-        } else if failed {
-            state = "2× 미적용 · 설정 저장"
-        } else {
-            state = "2× 출력 대기 · 아직 미적용"
-        }
-        outputConditioningHeadroomCaption?.stringValue = "헤드룸 · \(state)"
+        let state = outputGainStateText
+        outputConditioningHeadroomCaption?.stringValue = L10n.format("main.detail.66cab52f8e", String(describing: state))
         // The number is the requested setting, not a callback acknowledgement.
-        let detail = "\(state). 설정 \(formatDbText(outputConditioningHeadroomDB)). 실제 2× 출력에서만 음량을 감쇠합니다. 0 dB는 감쇠 없음, −6 dB는 신호 진폭 약 절반입니다. 모델 내부의 포화·배음을 되돌리지는 않습니다."
+        let detail = L10n.format("main.detail.ad04b97380", String(describing: state), String(describing: formatDbText(outputConditioningHeadroomDB)))
         slider.toolTip = detail
         outputConditioningHeadroomValueLabel?.toolTip = detail
         outputConditioningHeadroomCaption?.toolTip = failed ? currentLivePCM2xFallback : detail
         let failure = currentStopFailure ?? currentProcessingFailure
         if pendingAudioOperation != nil {
-            outputConditioningRuntimeLabel?.stringValue = "오디오 시작·중지 작업을 기다리는 중입니다. 설정은 저장되며, 정상 시작이 완료되면 최신 값이 적용됩니다."
+            outputConditioningRuntimeLabel?.stringValue = L10n.string("main.output.runtime.pending")
             outputConditioningRuntimeLabel?.toolTip = nil
         } else if let failure {
-            outputConditioningRuntimeLabel?.stringValue = "오디오 처리가 중단됐습니다. 오디오 적용에서 중지 후 다시 적용하세요. 헤드룸 값은 저장되며 현재 소리에는 적용되지 않습니다."
+            outputConditioningRuntimeLabel?.stringValue = L10n.string("main.detail.c4261b4bf6")
             outputConditioningRuntimeLabel?.toolTip = failure
         } else if failed {
-            outputConditioningRuntimeLabel?.stringValue = "현재 2× 출력은 미적용입니다. 헤드룸 값은 저장되며 2× 출력이 활성화되면 적용됩니다."
+            outputConditioningRuntimeLabel?.stringValue = L10n.string("main.detail.1b6ec0e8ef")
             outputConditioningRuntimeLabel?.toolTip = currentLivePCM2xFallback
         } else {
             outputConditioningRuntimeLabel?.stringValue = ""
@@ -1435,7 +1910,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         pendingHeadroomEdit = true
         preferenceStore.set(outputConditioningHeadroomDB, forKey: "outputConditioningHeadroomDB")
         outputConditioningHeadroomValueLabel.stringValue = formatDbText(outputConditioningHeadroomDB)
-        refreshOutputConditioningHeadroomState()
+        updateOutputConditioningStatus()
         if currentLivePCM2xActive { pushActiveHeadroomSettings() }
     }
 
@@ -1496,54 +1971,43 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         }
     }
 
-    private func isViewLoadedConditioningPage() -> Bool {
-        outputConditioningDSDPopup != nil
-    }
+    private func isViewLoadedConditioningPage() -> Bool { outputRateModePopup != nil }
 
     private func updateOutputConditioningStatus() {
         applyOutputConditioningControlEnabledState()
-        guard let statusLabel = outputConditioningStatusLabel else { return }
-        let capability = outputConditioningCapability
-        var lines: [String] = []
-        if let capability {
-            // DSD/DoP is offline/test-only — these carrier figures are DAC
-            // capability checks shown for reference, NOT as live output support.
-            let carrierText = [DSDMode.dsd64, .dsd128, .dsd256]
-                .map { "\($0.displayName) \(Self.rateText(DoPCarrier.requiredCarrierRate(for: $0))): \(capability.canAttemptDoP($0) ? "DAC 지원(참고용)" : "DAC 미지원")" }
-                .joined(separator: " / ")
-            lines.append("DSD/DoP (오프라인/테스트 전용, 실시간 출력 미지원): \(carrierText)")
-            // Live PCM 2× (experimental, real-time) capability for the eligible rates.
-            let live44 = capability.canAttemptLivePCM2x(tapRate: 44_100)
-            let live48 = capability.canAttemptLivePCM2x(tapRate: 48_000)
-            lines.append("Live PCM 2×(실험, 실시간 지원): 44.1k→88.2k \(live44 ? "지원" : "미지원") / 48k→96k \(live48 ? "지원" : "미지원")")
+        guard let label = outputConditioningStatusLabel else { return }
+        if let failure = currentStopFailure {
+            label.stringValue = L10n.format("main.status.stopIncomplete", failure)
+        } else if let failure = currentProcessingFailure {
+            label.stringValue = L10n.format("main.status.startFailed", failure)
+        } else if pendingAudioOperation != nil {
+            label.stringValue = L10n.string("main.output.state.pendingOperation")
+        } else if currentLivePCM2xActive {
+            label.stringValue = L10n.format("main.output.state.activeRates", Self.rateText(currentTapSampleRate ?? 0), Self.rateText(currentProcessingSampleRate ?? 0))
+        } else if outputRateMode == .upsample2x, !currentLivePCM2xFallback.isEmpty {
+            label.stringValue = L10n.format("main.output.state.unavailableReason", currentLivePCM2xFallback)
+        } else if outputRateMode == .upsample2x, let capability = outputConditioningCapability,
+                  !(capability.canAttemptLivePCM2x(tapRate: currentTapSampleRate ?? 44_100)
+                    || (currentTapSampleRate == nil && capability.canAttemptLivePCM2x(tapRate: 48_000))) {
+            label.stringValue = L10n.string("main.output.capability.unsupportedDevice")
         } else {
-            lines.append("DAC capability를 조회하지 못했습니다. 실시간 출력은 PCM으로만 동작합니다.")
+            label.stringValue = outputRateMode == .matchSource ? rateMatchStatusText : L10n.string("main.status.ready")
         }
-        // DSD/DoP is offline/test-only — the picker is never enabled for live
-        // output; selecting a family has no effect on the real-time path.
-        outputConditioningDSDPopup?.isEnabled = false
-
-        // A selected DSD family is informational only: it does not change the
-        // real-time output, which stays PCM. State that plainly instead of
-        // implying a fallback from an active DSD output.
-        let selectedMode = DSDMode(rawValue: outputConditioningDSDRaw) ?? .off
-        if selectedMode != .off {
-            lines.append("ℹ \(selectedMode.displayName)는 오프라인/테스트 전용이며 실시간 출력에 적용되지 않습니다. 현재 PCM으로 출력됩니다.")
-        }
-
-        // PCM Oversampling 2× selected but the device cannot run it → will fall
-        // back to PCM bypass on activation.
-        let pcmOSActive = outputConditioningEnabled
-            && (OutputConditioningMode(rawValue: outputConditioningModeRaw) == .pcmOversampling)
-            && outputConditioningFactor == 2
-        if pcmOSActive,
-           let capability,
-           !(capability.canAttemptLivePCM2x(tapRate: 44_100) || capability.canAttemptLivePCM2x(tapRate: 48_000)) {
-            lines.append("⚠ 이 장치가 2× 출력 샘플레이트(88.2/96kHz)를 지원하지 않아 PCM Oversampling이 PCM으로 폴백됩니다.")
-        }
-
-        statusLabel.stringValue = lines.joined(separator: "\n")
+        label.toolTip = label.stringValue
+        let noticePending = preferenceStore.bool(forKey: RedesignPreferences.Keys.noticePending)
+        outputMigrationNoticeLabel?.stringValue = noticePending ? L10n.string("main.output.notice.migrated") : ""
+        outputMigrationNoticeLabel?.isHidden = !noticePending
+        outputMigrationDismissButton?.isHidden = !noticePending
+        refreshOutputGainNote()
     }
+
+    @objc private func dismissOutputMigrationNotice() {
+        preferenceStore.set(false, forKey: RedesignPreferences.Keys.noticePending)
+        updateOutputConditioningStatus()
+        layoutOutputConditioningPage()
+    }
+
+
 
     private static func rateText(_ sampleRate: Double) -> String {
         sampleRate >= 1000
@@ -1552,82 +2016,77 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func layoutModelPage() {
-        guard let page = pageViews[.model] else { return }
+        guard let page = modelDocument, let modelScroll else { return }
+        page.setFrameSize(NSSize(width: modelScroll.contentSize.width, height: max(552, modelScroll.contentSize.height)))
         let width = page.bounds.width
-        let height = page.bounds.height
-        modelExplanationView.frame = NSRect(x: 24, y: height - 246, width: max(width - 48, 1), height: 78)
-        modelControlsView.frame = NSRect(x: 24, y: height - 402, width: max(width - 48, 1), height: 132)
-        modelPresetsView.frame = NSRect(x: 24, y: height - 458, width: max(width - 48, 1), height: 38)
-
-        let controlsWidth = modelControlsView.bounds.width
-        let sliderWidth = max(controlsWidth - 220, 120)
-        for slider in [intensitySlider, bodySlider, outputSlider] {
-            slider?.frame.size.width = sliderWidth
+        let isOff = selectedDSPModel() == .clean
+        let inset: CGFloat = 28
+        let contentWidth = width - inset * 2
+        modelSelector.frame = NSRect(x: inset, y: 80, width: contentWidth, height: 44)
+        page.viewWithTag(9801)?.frame = NSRect(x: width - inset - 28, y: 28, width: 28, height: 28)
+        modelExplanationView.frame = .zero
+        modelControlsView.frame = NSRect(x: inset, y: 148, width: contentWidth, height: 248)
+        page.viewWithTag(9802)?.frame = NSRect(x: inset, y: 420, width: contentWidth, height: 18)
+        modelPresetsView.frame = NSRect(x: inset, y: 446, width: contentWidth, height: 38)
+        toneReceiptLabel.frame = NSRect(x: inset, y: 504, width: contentWidth, height: 34)
+        modelPresetsView.isHidden = isOff
+        page.viewWithTag(9802)?.isHidden = isOff
+        if isOff { toneReceiptLabel.frame.origin.y = 420 }
+        for view in [intensityNameLabel, bodyNameLabel, intensityValueLabel, bodyValueLabel, intensitySlider, bodySlider,
+                     modelControlsView.viewWithTag(9810), modelControlsView.viewWithTag(9811)] { view?.isHidden = isOff }
+        if let bypass = modelControlsView.viewWithTag(9814) {
+            bypass.isHidden = !isOff; bypass.frame = modelControlsView.bounds
+            bypass.subviews[0].frame = NSRect(x: (contentWidth - 40) / 2, y: 146, width: 40, height: 40)
+            bypass.subviews[1].frame = NSRect(x: 24, y: 98, width: contentWidth - 48, height: 30)
+            bypass.subviews[2].frame = NSRect(x: (contentWidth - 28) / 2, y: 52, width: 28, height: 28)
         }
-        for valueLabel in [intensityValueLabel, bodyValueLabel, outputValueLabel] {
-            valueLabel?.frame.origin.x = controlsWidth - 90
+        let cardWidth = (contentWidth - 16) / 2
+        for (index, controls) in [(intensityNameLabel!, intensityValueLabel!, intensitySlider!),
+                                  (bodyNameLabel!, bodyValueLabel!, bodySlider!)].enumerated() {
+            let x = CGFloat(index) * (cardWidth + 16)
+            modelControlsView.viewWithTag(9810 + index)?.frame = NSRect(x: x, y: 100, width: cardWidth, height: 148)
+            controls.0.frame = NSRect(x: x + 22, y: 210, width: cardWidth - 44, height: 20)
+            controls.1.frame = NSRect(x: x + 22, y: 156, width: cardWidth - 44, height: 44)
+            controls.2.frame = NSRect(x: x + 22, y: 118, width: cardWidth - 44, height: 26)
         }
-        oversamplingModeControl?.frame.size.width = max(controlsWidth - 220, 180)
-
-        let gap: CGFloat = 8
-        let presetWidth = max((modelPresetsView.bounds.width - gap * 4) / 5, 48)
+        modelControlsView.viewWithTag(9812)?.frame = NSRect(x: 0, y: 0, width: contentWidth, height: 84)
+        outputNameLabel.frame = NSRect(x: 22, y: 52, width: contentWidth - 164, height: 20)
+        outputValueLabel.frame = NSRect(x: contentWidth - 142, y: 47, width: 120, height: 30)
+        outputSlider.frame = NSRect(x: 22, y: 14, width: contentWidth - 44, height: 26)
+        // The label has its own line; it never competes with Auto / 1× / 2× / 4×.
+        oversamplingModeLabel.frame = NSRect(x: 22, y: 54, width: contentWidth - 72, height: 20)
+        oversamplingModeControl.frame = NSRect(x: 18, y: 8, width: min(360, contentWidth - 36), height: 36)
+        modelControlsView.viewWithTag(9813)?.frame = NSRect(x: contentWidth - 50, y: 48, width: 28, height: 28)
+        let presetWidth = (contentWidth - 8 * 4) / 5
         for (index, button) in presetButtons.enumerated() {
-            button.frame = NSRect(
-                x: CGFloat(index) * (presetWidth + gap),
-                y: 0,
-                width: presetWidth,
-                height: 36
-            )
+            button.frame = NSRect(x: CGFloat(index) * (presetWidth + 8), y: 0, width: presetWidth, height: 38)
         }
-    }
-
-    private func layoutRoutingPage() {
-        guard let page = pageViews[.routing] else { return }
-        let width = page.bounds.width
-        bundleField?.frame = NSRect(
-            x: 24,
-            y: page.bounds.height - 200,
-            width: max(width - 200, 160),
-            height: 32
-        )
-        routingStartAppButton?.frame = NSRect(
-            x: max(width - 152, 184),
-            y: page.bounds.height - 204,
-            width: 128,
-            height: 40
-        )
-        routingAppsScrollView?.frame = NSRect(
-            x: 24,
-            y: 24,
-            width: max(page.bounds.width - 48, 1),
-            height: max(page.bounds.height - 292, 120)
-        )
+        for view in modelControlsView.subviews { view.autoresizingMask = [] }
     }
 
     private func makeLabel(_ text: String, size: CGFloat, weight: NSFont.Weight) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: size, weight: weight)
-        label.textColor = NSColor(calibratedRed: 0.80, green: 0.83, blue: 0.88, alpha: 1)
+        label.textColor = GlassDesign.ink
         return label
     }
 
     private func makeButton(_ title: String, action: Selector) -> NSButton {
-        let button = NSButton(title: title, target: self, action: action)
-        button.bezelStyle = .rounded
-        button.font = .systemFont(ofSize: 14, weight: .semibold)
+        let button = StudioButton(title: title, target: self, action: action)
+        button.isBordered = false
+        button.focusRingType = .none
+        button.font = .systemFont(ofSize: 13, weight: .semibold)
         return button
     }
 
     private func makeExplanationSection() -> NSView {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 78))
+        let view = MonochromeSurface(frame: NSRect(x: 0, y: 0, width: 520, height: 78), radius: 18)
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(calibratedRed: 0.12, green: 0.14, blue: 0.17, alpha: 1).cgColor
-        view.layer?.cornerRadius = 8
 
         let lines = [
-            "소리 흐름: Mac 소리 -> LowEnd 처리 -> 현재 선택된 스피커/헤드폰",
-            "전체 시스템 적용: 브라우저, 음악 앱, 게임 등 대부분의 출력에 적용",
-            "Tidal Exclusive Mode처럼 출력 장치를 독점하는 모드는 우회될 수 있습니다."
+            L10n.string("main.detail.5224898d4f"),
+            L10n.string("main.detail.c5653f1038"),
+            L10n.string("main.detail.9dc3b9005a")
         ]
 
         for (index, line) in lines.enumerated() {
@@ -1642,10 +2101,22 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func makeControlSection() -> NSView {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 132))
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 248))
+        for index in 0..<3 {
+            let well = MonochromeSurface(frame: .zero, radius: 14, well: true)
+            well.tag = 9810 + index; view.addSubview(well)
+        }
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(calibratedRed: 0.12, green: 0.14, blue: 0.17, alpha: 1).cgColor
-        view.layer?.cornerRadius = 8
+
+        let bypass = MonochromeSurface(frame: .zero, radius: 14, well: true)
+        bypass.tag = 9814
+        let bypassImage = NSImageView(image: NSImage(systemSymbolName: "waveform.slash", accessibilityDescription: nil) ?? NSImage())
+        bypassImage.contentTintColor = .secondaryLabelColor
+        let bypassTitle = makeLabel(L10n.string("main.sound.offTitle"), size: 20, weight: .medium)
+        bypassTitle.alignment = .center
+        let bypassHelp = GlassHelpButton(L10n.string("main.sound.offHelp"), context: L10n.string("main.sound.offTitle"))
+        bypass.addSubview(bypassImage); bypass.addSubview(bypassTitle); bypass.addSubview(bypassHelp)
+        view.addSubview(bypass)
 
         intensitySlider = makeSlider(value: 55, min: 0, max: 100)
         bodySlider = makeSlider(value: 30, min: 0, max: 100)
@@ -1661,20 +2132,27 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         bodyNameLabel = addSliderRow(to: view, y: 48, title: "Body", slider: bodySlider, valueLabel: bodyValueLabel)
         outputNameLabel = addSliderRow(to: view, y: 10, title: "Output", slider: outputSlider, valueLabel: outputValueLabel)
 
-        oversamplingModeLabel = makeLabel("배음 품질", size: 13, weight: .semibold)
+        oversamplingModeLabel = makeLabel(L10n.string("main.sound.oversampling"), size: 13, weight: .semibold)
         oversamplingModeLabel.frame = NSRect(x: 16, y: 10, width: 100, height: 24)
-        oversamplingModeControl = NSSegmentedControl(
+        oversamplingModeControl = StudioSegmentedControl(
             labels: ExciterOversamplingMode.allCases.map(\.title),
             trackingMode: .selectOne,
             target: self,
             action: #selector(oversamplingModeChanged)
         )
+        oversamplingModeControl.focusRingType = .none
         oversamplingModeControl.frame = NSRect(x: 120, y: 7, width: 310, height: 28)
         oversamplingModeControl.autoresizingMask = [.width]
         oversamplingModeControl.selectedSegment = segmentIndex(for: exciterOversamplingMode)
-        oversamplingModeControl.toolTip = "HighExciter 배음 생성 구간만 높은 레이트로 계산한 뒤 원래 Tap 레이트로 돌아옵니다. DAC 출력 배수와 독립적입니다. Auto는 Tap 처리율에 맞춰 선택하며, 수동 선택도 내부 처리율 384 kHz 한도에서 제한됩니다."
+        oversamplingModeControl.toolTip = L10n.string("main.detail.7d5886ba07")
         view.addSubview(oversamplingModeLabel)
         view.addSubview(oversamplingModeControl)
+        let help = GlassHelpButton(L10n.string("main.detail.7d5886ba07"), context: L10n.string("main.sound.oversampling"))
+        help.tag = 9813; view.addSubview(help)
+        intensityValueLabel.font = .monospacedDigitSystemFont(ofSize: 34, weight: .medium)
+        bodyValueLabel.font = .monospacedDigitSystemFont(ofSize: 34, weight: .medium)
+        outputValueLabel.font = .monospacedDigitSystemFont(ofSize: 20, weight: .medium)
+        outputValueLabel.alignment = .right
         configureControlsForSelectedModel()
         return view
     }
@@ -1703,6 +2181,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private func makeSlider(value: Double, min: Double, max: Double) -> NSSlider {
         let slider = NSSlider(value: value, minValue: min, maxValue: max, target: self, action: #selector(sliderChanged))
         slider.isContinuous = true
+        slider.trackFillColor = .labelColor
         return slider
     }
 
@@ -1720,9 +2199,25 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         return label
     }
 
+    private func refreshToneReceiptPresentation() {
+        guard let label = toneReceiptLabel else { return }
+        guard pendingAudioOperation == nil, currentStopFailure == nil, currentProcessingFailure == nil,
+              let processor else {
+            label.stringValue = L10n.string("main.sound.receipt.inactive"); return
+        }
+        guard let receipt = processor.receivedTone, receipt.model == selectedDSPModel(),
+              abs(receipt.intensity - (intensitySlider?.doubleValue ?? 0)) <= 0.011,
+              abs(receipt.body - (bodySlider?.doubleValue ?? 0)) <= 0.011 else {
+            label.stringValue = L10n.string("main.sound.receipt.pending"); return
+        }
+        label.stringValue = L10n.format("main.sound.receipt.received", receipt.model.displayName, receipt.intensity, receipt.body)
+        label.toolTip = L10n.string("main.sound.receipt.help")
+    }
+
     @objc private func sliderChanged() {
         updateSliderLabels()
         updateOversamplingIndicator()
+        refreshToneReceiptPresentation()
         let model = selectedDSPModel()
         if model != .clean {
             saveSliderValues(
@@ -1760,7 +2255,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             automaticRateMatchingEnabled,
             forKey: "automaticRateMatchingEnabled"
         )
-        rateMatchStatusText = automaticRateMatchingEnabled ? "자동 켜짐: 소스 안정화 대기" : "자동 꺼짐"
+        rateMatchStatusText = automaticRateMatchingEnabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
         updateRateMatchPreview()
         if pendingAudioOperation == nil && currentStopFailure == nil {
             processor?.setAutomaticRateMatchingEnabled(automaticRateMatchingEnabled)
@@ -1779,14 +2274,16 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     @objc private func modelChanged() {
         let model = selectedDSPModel()
         preferenceStore.set(modelSelector.selectedSegment, forKey: "selectedModel")
+        preferenceStore.set(model.rawValue, forKey: "selectedModelID")
         applySliderValues(loadSliderValues(for: model))
         configureControlsForSelectedModel()
         sliderChanged()
         updateCompactFormatSummary()
         statusLabel.stringValue = currentProcessingFailure == nil
-            ? "모델 변경: \(model.displayName)"
-            : "처리 중단 · 모델 설정 저장: \(model.displayName)"
+            ? L10n.format("main.detail.96a754696e", String(describing: model.displayName))
+            : L10n.format("main.detail.71a627f296", String(describing: model.displayName))
         refreshAudioOperationPresentation()
+        layoutModelPage()
     }
 
     private func configureControlsForSelectedModel() {
@@ -1799,50 +2296,56 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
         switch selectedDSPModel() {
         case .clean:
-            intensityNameLabel.stringValue = "Bypass"
-            bodyNameLabel.stringValue = "Bypass"
-            outputNameLabel.stringValue = "Output"
+            intensityNameLabel.stringValue = L10n.string("main.sound.value.bypass")
+            bodyNameLabel.stringValue = L10n.string("main.sound.value.bypass")
+            outputNameLabel.stringValue = L10n.string("main.sound.bass.trim")
             intensitySlider.isEnabled = false
             bodySlider.isEnabled = false
             outputSlider.isEnabled = false
-            intensitySlider.toolTip = "Clean 모델은 톤 DSP(회로/배음) 처리를 사용하지 않습니다."
-            bodySlider.toolTip = "Clean 모델은 톤 DSP(회로/배음) 처리를 사용하지 않습니다."
-            outputSlider.toolTip = "Clean 모델은 출력 게인을 적용하지 않습니다. 공간 음향은 모델과 관계없이 별도로 동작합니다."
+            intensitySlider.toolTip = L10n.string("main.detail.17b8f25465")
+            bodySlider.toolTip = L10n.string("main.detail.17b8f25465")
+            outputSlider.toolTip = L10n.string("main.detail.eb88e941c9")
             setOversamplingControlsVisible(false)
         case .circuit:
-            intensityNameLabel.stringValue = "LowEnd"
-            bodyNameLabel.stringValue = "Body"
-            outputNameLabel.stringValue = "Output"
+            intensityNameLabel.stringValue = L10n.string("main.sound.bass.amount")
+            bodyNameLabel.stringValue = L10n.string("main.sound.bass.fullness")
+            outputNameLabel.stringValue = L10n.string("main.sound.bass.trim")
             intensitySlider.isEnabled = true
             bodySlider.isEnabled = true
             outputSlider.isEnabled = true
-            intensitySlider.toolTip = "저역 부스트의 강도입니다. 높일수록 베이스가 앞으로 나옵니다."
-            bodySlider.toolTip = "서브 저역의 두께감입니다. 높일수록 묵직하지만 과하면 부풀 수 있습니다."
-            outputSlider.toolTip = "Circuit 모델의 최종 출력 보정입니다. 저역을 많이 올릴수록 낮춰두는 편이 안전합니다."
+            intensitySlider.toolTip = L10n.string("main.sound.bass.amount.tooltip")
+            bodySlider.toolTip = L10n.string("main.sound.bass.fullness.tooltip")
+            outputSlider.toolTip = L10n.string("main.detail.0686783f85")
             setOversamplingControlsVisible(false)
         case .highExciter:
-            intensityNameLabel.stringValue = "Exciter Drive"
-            bodyNameLabel.stringValue = "Wet Mix"
-            outputNameLabel.stringValue = "Output"
+            intensityNameLabel.stringValue = L10n.string("main.sound.treble.drive")
+            bodyNameLabel.stringValue = L10n.string("main.sound.treble.added")
+            outputNameLabel.stringValue = L10n.string("main.sound.bass.trim")
             intensitySlider.isEnabled = true
             bodySlider.isEnabled = true
             outputSlider.isEnabled = false
-            intensitySlider.toolTip = "11 kHz 이상 고역 성분에 적용할 배음 생성 drive입니다."
-            bodySlider.toolTip = "원본 신호에 병렬로 더할 고역 배음 wet mix입니다."
-            outputSlider.toolTip = "HighExciter 모델은 dry 신호 보존을 위해 출력 게인을 적용하지 않습니다."
+            intensitySlider.toolTip = L10n.string("main.sound.treble.drive.tooltip")
+            bodySlider.toolTip = L10n.string("main.detail.9028ce10ac")
+            outputSlider.toolTip = L10n.string("main.detail.358d013f41")
             setOversamplingControlsVisible(true)
         }
 
+        intensitySlider.setAccessibilityLabel(intensityNameLabel.stringValue)
+        bodySlider.setAccessibilityLabel(bodyNameLabel.stringValue)
+        outputSlider.setAccessibilityLabel(outputNameLabel.stringValue)
         configurePresetButtons()
         updateSliderLabels()
     }
 
     private func setOversamplingControlsVisible(_ isVisible: Bool) {
-        oversamplingModeLabel?.isHidden = !isVisible
-        oversamplingModeControl?.isHidden = !isVisible
-        outputNameLabel?.isHidden = isVisible
-        outputSlider?.isHidden = isVisible
-        outputValueLabel?.isHidden = isVisible
+        oversamplingModeLabel?.isHidden = !isVisible || !expertModeEnabled
+        oversamplingModeControl?.isHidden = !isVisible || !expertModeEnabled
+        let hidesOutput = selectedDSPModel() != .circuit
+        outputNameLabel?.isHidden = hidesOutput
+        outputSlider?.isHidden = hidesOutput
+        outputValueLabel?.isHidden = hidesOutput
+        modelControlsView?.viewWithTag(9812)?.isHidden = hidesOutput && (!isVisible || !expertModeEnabled)
+        modelControlsView?.viewWithTag(9813)?.isHidden = !isVisible || !expertModeEnabled
     }
 
     private func segmentIndex(for mode: ExciterOversamplingMode) -> Int {
@@ -1863,29 +2366,29 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             return []
         case .circuit:
             return [
-                ModelPreset(name: "IEM", primary: 30, secondary: 8, outputDb: -2.0,
-                            toolTip: "민감한 이어폰용입니다. 낮은 포화와 충분한 헤드룸을 둡니다."),
-                ModelPreset(name: "Gentle", primary: 22, secondary: 8, outputDb: -1.0,
-                            toolTip: "가볍게 저역만 보강합니다."),
-                ModelPreset(name: "LowEnd", primary: 42, secondary: 18, outputDb: -1.8,
-                            toolTip: "일반적인 저역 보강 시작점입니다."),
-                ModelPreset(name: "Deep", primary: 54, secondary: 22, outputDb: -2.8,
-                            toolTip: "서브 저역을 더 강조하고 출력 헤드룸을 확보합니다."),
-                ModelPreset(name: "Clear", primary: 0, secondary: 0, outputDb: 0,
-                            toolTip: "Circuit 파라미터를 0으로 되돌리는 기준점입니다.")
+                ModelPreset(name: L10n.string("main.sound.preset.softBass"), primary: 30, secondary: 8, outputDb: -2.0,
+                            toolTip: L10n.string("main.sound.preset.softBass.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.lightBass"), primary: 22, secondary: 8, outputDb: -1.0,
+                            toolTip: L10n.string("main.sound.preset.lightBass.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.fullBass"), primary: 42, secondary: 18, outputDb: -1.8,
+                            toolTip: L10n.string("main.sound.preset.fullBass.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.deepBass"), primary: 54, secondary: 22, outputDb: -2.8,
+                            toolTip: L10n.string("main.sound.preset.deepBass.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.neutral"), primary: 0, secondary: 0, outputDb: 0,
+                            toolTip: L10n.string("main.detail.7dac23f220"))
             ]
         case .highExciter:
             return [
-                ModelPreset(name: "Soft", primary: 12, secondary: 4, outputDb: nil,
-                            toolTip: "고역 배음을 아주 약하게 더합니다."),
-                ModelPreset(name: "Air", primary: 22, secondary: 7, outputDb: nil,
-                            toolTip: "공기감과 초고역의 개방감을 가볍게 더합니다."),
-                ModelPreset(name: "Detail", primary: 35, secondary: 11, outputDb: nil,
-                            toolTip: "보컬과 악기의 미세한 고역 디테일을 강조합니다."),
-                ModelPreset(name: "Shimmer", primary: 50, secondary: 16, outputDb: nil,
-                            toolTip: "고역 배음 효과를 더 분명하게 들려줍니다."),
-                ModelPreset(name: "Off", primary: 0, secondary: 0, outputDb: nil,
-                            toolTip: "HighExciter 배음 처리를 끕니다.")
+                ModelPreset(name: L10n.string("main.sound.preset.subtle"), primary: 12, secondary: 4, outputDb: nil,
+                            toolTip: L10n.string("main.sound.preset.subtle.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.light"), primary: 22, secondary: 7, outputDb: nil,
+                            toolTip: L10n.string("main.sound.preset.light.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.medium"), primary: 35, secondary: 11, outputDb: nil,
+                            toolTip: L10n.string("main.sound.preset.medium.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.strong"), primary: 50, secondary: 16, outputDb: nil,
+                            toolTip: L10n.string("main.sound.preset.strong.tooltip")),
+                ModelPreset(name: L10n.string("main.sound.preset.off"), primary: 0, secondary: 0, outputDb: nil,
+                            toolTip: L10n.string("main.detail.7cc2a70db8"))
             ]
         }
     }
@@ -1900,22 +2403,32 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             guard index < modelPresets.count else {
                 button.title = "-"
                 button.isEnabled = false
-                button.toolTip = "Clean 모델은 완전한 bypass이므로 프리셋을 적용하지 않습니다."
+                button.toolTip = L10n.string("main.detail.3dad704241")
                 continue
             }
 
             button.title = modelPresets[index].name
+            button.state = .off
             button.isEnabled = true
             button.toolTip = modelPresets[index].toolTip
         }
     }
 
     private func updateSliderLabels() {
+        let modelPresets = presets(for: selectedDSPModel())
+        for (index, button) in presetButtons.enumerated() {
+            guard modelPresets.indices.contains(index) else { button.state = .off; continue }
+            let preset = modelPresets[index]
+            let matches = abs(intensitySlider.doubleValue - preset.primary) < 0.01
+                && abs(bodySlider.doubleValue - preset.secondary) < 0.01
+                && (preset.outputDb == nil || abs(outputSlider.doubleValue - preset.outputDb!) < 0.01)
+            button.state = matches ? .on : .off
+        }
         switch selectedDSPModel() {
         case .clean:
             intensityValueLabel.stringValue = "Off"
             bodyValueLabel.stringValue = "Off"
-            outputValueLabel.stringValue = "Bypass"
+            outputValueLabel.stringValue = L10n.string("main.sound.value.bypass")
         case .circuit:
             intensityValueLabel.stringValue = "\(Int(intensitySlider.doubleValue.rounded()))%"
             bodyValueLabel.stringValue = "\(Int(bodySlider.doubleValue.rounded()))%"
@@ -1923,7 +2436,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         case .highExciter:
             intensityValueLabel.stringValue = String(format: "%.2f", intensitySlider.doubleValue / 100)
             bodyValueLabel.stringValue = String(format: "%.2f", bodySlider.doubleValue / 100)
-            outputValueLabel.stringValue = "Bypass"
+            outputValueLabel.stringValue = L10n.string("main.sound.value.bypass")
         }
     }
 
@@ -1939,13 +2452,13 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         let wetActive = bodySlider.doubleValue >= 0.01
         guard driveActive && wetActive else {
             oversamplingLabel.stringValue = "HighExciter | Oversampling idle"
-            oversamplingLabel.textColor = NSColor(calibratedRed: 0.55, green: 0.58, blue: 0.63, alpha: 1)
+            oversamplingLabel.textColor = GlassDesign.secondary
             return
         }
 
         guard let sampleRate = currentTapSampleRate else {
             oversamplingLabel.stringValue = "HighExciter | Oversampling format waiting"
-            oversamplingLabel.textColor = NSColor(calibratedRed: 0.55, green: 0.74, blue: 0.82, alpha: 1)
+            oversamplingLabel.textColor = GlassDesign.secondary
             return
         }
 
@@ -1954,44 +2467,39 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             mode: exciterOversamplingMode
         )
         oversamplingLabel.stringValue = ExciterOversamplingPolicy.indicator(resolution)
-        oversamplingLabel.textColor = NSColor(calibratedRed: 0.31, green: 0.78, blue: 0.94, alpha: 1)
+        oversamplingLabel.textColor = GlassDesign.secondary
     }
 
     private func updateFormatHeaderMode() {
-        let showExpertDetails = expertModeEnabled
-        compactSourceTitleLabel?.isHidden = showExpertDetails
-        compactSourceValueLabel?.isHidden = showExpertDetails
-        compactOutputLabel?.isHidden = showExpertDetails
-        compactModelLabel?.isHidden = showExpertDetails
-        sourceFormatLabel?.isHidden = !showExpertDetails
-        formatLabel?.isHidden = !showExpertDetails
-        rateMatchPreviewLabel?.isHidden = !showExpertDetails
+        advancedSettingsView?.isHidden = !expertModeEnabled
+        setOversamplingControlsVisible(selectedDSPModel() == .highExciter)
         updateOversamplingIndicator()
+        layoutSettingsPage()
     }
 
     private func updateCompactFormatSummary() {
         guard compactSourceTitleLabel != nil else { return }
 
         if let playerName = currentSourcePlayerName {
-            compactSourceTitleLabel.stringValue = "\(playerName) 재생 음원"
+            compactSourceTitleLabel.stringValue = L10n.format("main.detail.d7ef4ef64f", String(describing: playerName))
         } else {
-            compactSourceTitleLabel.stringValue = "음원 재생"
+            compactSourceTitleLabel.stringValue = L10n.string("main.format.sourceTitle")
         }
 
         if let sourceRate = currentSourceSampleRate {
-            let depthText = currentSourceBitDepth.map { "\($0)-bit" } ?? "비트 깊이 미확인"
+            let depthText = currentSourceBitDepth.map { "\($0)-bit" } ?? L10n.string("main.detail.16562e0220")
             compactSourceValueLabel.stringValue = "\(formatSampleRate(sourceRate)) / \(depthText)"
         } else {
-            compactSourceValueLabel.stringValue = "재생 정보 대기 중"
+            compactSourceValueLabel.stringValue = L10n.string("main.format.sourceWaiting")
         }
 
         if let outputRate = currentDeviceSampleRate {
             compactOutputLabel.stringValue =
-                "출력  \(formatSampleRate(outputRate)) / \(currentOutputSampleFormat)"
+                L10n.format("main.detail.95befb4293", String(describing: formatSampleRate(outputRate)), String(describing: currentOutputSampleFormat))
         } else {
-            compactOutputLabel.stringValue = "출력 포맷 대기 중"
+            compactOutputLabel.stringValue = L10n.string("main.format.outputWaiting")
         }
-        compactModelLabel.stringValue = "적용 모델  \(selectedDSPModel().displayName)"
+        compactModelLabel.stringValue = L10n.format("main.detail.ec880746c8", String(describing: selectedDSPModel().displayName))
     }
 
     private func formatSampleRate(_ sampleRate: Double) -> String {
@@ -2008,9 +2516,9 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         spatialControlModel.update(settings)
         if notifyProcessor, pendingAudioOperation == nil, let processor {
             lastSpatialSubmissionRevision = processor.updateSpatial(spatialControlModel.settings)
-            spatialControlModel.appliedStatusText = "오디오 설정 수신 대기 (요청 \(lastSpatialSubmissionRevision))"
+            spatialControlModel.appliedStatusText = L10n.format("main.detail.da50097e05", String(describing: lastSpatialSubmissionRevision))
         } else if processor == nil {
-            spatialControlModel.appliedStatusText = "재생 중지: 오디오 설정 적용 대기"
+            spatialControlModel.appliedStatusText = L10n.string("main.detail.3734a4ef34")
         }
     }
 
@@ -2046,7 +2554,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             outputSlider.doubleValue = outputDb
         }
         sliderChanged()
-        statusLabel.stringValue = "\(model.displayName) 프리셋 적용: \(preset.name)"
+        statusLabel.stringValue = L10n.format("main.sound.status.preset", String(describing: model.displayName), String(describing: preset.name))
         refreshAudioOperationPresentation()
     }
 
@@ -2057,7 +2565,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     @objc private func startSelectedApp() {
         let bundleID = bundleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !bundleID.isEmpty else {
-            statusLabel.stringValue = "특정 앱의 bundle id를 입력하세요."
+            statusLabel.stringValue = L10n.string("main.status.noBundleID")
             return
         }
 
@@ -2076,6 +2584,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func selectedDSPModel() -> Settings.DSPModel {
+        guard let modelSelector else { return initialModel }
         switch modelSelector.selectedSegment {
         case 1:
             return .circuit
@@ -2130,6 +2639,13 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func start(_ settings: Settings) {
+        if pendingAudioOperation == nil {
+            switch settings.mode {
+            case .all: pendingTarget = .system
+            case .bundleIDs(let ids): pendingTarget = .app(bundleID: ids.first ?? "", name: nil)
+            default: pendingTarget = nil
+            }
+        }
         guard pendingAudioOperation == nil else {
             refreshAudioOperationPresentation()
             return
@@ -2209,6 +2725,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             pendingAudioOperation = nil
             currentStopFailure = nil
             currentProcessingFailure = nil
+            activeTarget = pendingTarget
+            refreshHeaderPresentation()
             // UI edits were stored while Start was pending. Take the current
             // values here, never the snapshot from the earlier Apply click.
             let latest = settings(for: .all)
@@ -2283,6 +2801,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private func completeAudioOperation(token: UUID) {
         guard let operation = pendingAudioOperation, operation.id == token else { return }
         pendingAudioOperation = nil
+        pendingTarget = nil
         refreshAudioOperationPresentation()
         if operation.quitRequested { finishRequestedQuit() }
     }
@@ -2293,22 +2812,26 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         if let operation = pendingAudioOperation {
             let message: String
             if operation.stopRequested && operation.phase != .stopping {
-                message = "중지 요청됨 · 진행 중인 오디오 작업의 응답을 기다리는 중"
+                message = L10n.string("main.status.stopRequested")
             } else if operation.phase == .stopping || operation.phase == .replacing {
-                message = "오디오 중지 중 · 장치 응답 대기"
+                message = L10n.string("main.status.stopping")
             } else {
-                message = "오디오 시작 중 · 장치 응답 대기"
+                message = L10n.string("main.status.starting")
             }
             statusLabel?.stringValue = message
-            statusLabel?.toolTip = "작업이 실제로 완료된 뒤 상태를 갱신합니다. 중지는 진행 중인 작업의 응답 후 처리됩니다."
+            statusLabel?.toolTip = L10n.string("main.status.operationTooltip")
             allSystemButton?.setAccessibilityLabel(message)
             allSystemButton?.toolTip = message
         } else {
-            allSystemButton?.setAccessibilityLabel("전체 시스템 적용")
-            allSystemButton?.toolTip = "전체 시스템 오디오 처리를 시작합니다."
+            allSystemButton?.setAccessibilityLabel(L10n.string("main.detail.4ac9585a1d"))
+            allSystemButton?.toolTip = L10n.string("main.status.applySystem.tooltip")
         }
         refreshAudioFlowPresentation()
-        refreshOutputConditioningHeadroomState()
+        refreshToneReceiptPresentation()
+        updateOutputConditioningStatus()
+        headerStopButton?.isEnabled = processor != nil || pendingAudioOperation != nil
+        outputRateModePopup?.isEnabled = pendingAudioOperation == nil
+        refreshHeaderPresentation()
     }
 
     /// A successful Start owns a graph, but may still be waiting for its first
@@ -2316,12 +2839,12 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     /// Failure and pending lifecycle messages always take precedence.
     private func refreshAudioFlowPresentation(_ snapshot: AudioDiagnosticsSnapshot? = nil) {
         if pendingAudioOperation != nil {
-            diagAudioFlowValue?.stringValue = "장치 응답 대기"
+            diagAudioFlowValue?.stringValue = L10n.string("main.state.waitingDevice")
             diagAudioFlowValue?.toolTip = nil
             return
         }
         if currentStopFailure != nil || currentProcessingFailure != nil {
-            diagAudioFlowValue?.stringValue = "처리 중단"
+            diagAudioFlowValue?.stringValue = L10n.string("main.detail.17370156d9")
             diagAudioFlowValue?.toolTip = currentStopFailure ?? currentProcessingFailure
             return
         }
@@ -2332,7 +2855,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         }
         let current = snapshot ?? processor.diagnosticsSnapshot()
         let flow = current.audioFlow
-        let text = flow.isConfirmed ? "처리 중: \(current.captureTarget)" : flow.displayText
+        let text = flow.isConfirmed ? L10n.format("main.state.processing", String(describing: current.captureTarget)) : flow.displayText
         if statusLabel?.stringValue != text { statusLabel?.stringValue = text }
         statusLabel?.toolTip = flow.isConfirmed ? nil : AudioFlowProgress.waitingHelp
         diagAudioFlowValue?.stringValue = flow.displayText
@@ -2340,24 +2863,24 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     }
 
     private func showAudioStartError(_ error: Error) {
-        statusLabel?.stringValue = "실행 실패: \(error)"
+        statusLabel?.stringValue = L10n.format("main.status.startFailed", String(describing: error))
         if error is CaptureInstanceCompatibility.Conflict || error is CaptureSessionLease.Failure {
             let alert = NSAlert()
-            alert.messageText = "오디오 처리를 시작할 수 없습니다."
+            alert.messageText = L10n.string("main.detail.12327a867f")
             alert.informativeText = String(describing: error)
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "확인")
+            alert.addButton(withTitle: L10n.string("runtime.capture.read"))
             alert.runModal()
         }
     }
 
     private func handleAudioStartFailure(_ error: Error) {
-        let startError = "실행 실패: \(error)"
+        let startError = L10n.format("main.status.startFailed", String(describing: error))
         if let failure = error as? AudioGraphTransitionFailure, !failure.recovered {
             // SAP already hit a failed teardown barrier. Preserve that graph
             // and its capture lease; the explicit Stop action owns retry.
             currentStopFailure = startError
-            statusLabel?.stringValue = "\(startError) · 정리 재시도 필요"
+            statusLabel?.stringValue = L10n.format("main.status.startFailedRetry", String(describing: startError))
             rateMatchStatusText = startError
             currentLivePCM2xFallback = startError
             refreshDiagnosticsPanel()
@@ -2383,101 +2906,319 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
     /// Actual AppKit controls and resize/state refreshes, without starting audio,
     /// showing a window or writing the user's saved settings.
+    static func runRedesignWindowChecks() throws {
+        let suite = "timbredock.window.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let owner = NativeAppDelegate(); owner.preferenceStore = preferences
+        owner.buildWindow(showWindow: false)
+        defer { owner.window.orderOut(nil) }
+        var assertions = 0
+        func require(_ condition: Bool, _ message: String) throws {
+            assertions += 1
+            if !condition { throw AppError.message("Redesign window: \(message)") }
+        }
+        try require(owner.draftTarget == .system && owner.activeTarget == nil, "fresh target is System Audio, unapplied")
+        let apps = [DiscoveredAudioApp(name: "Same Name", bundleID: "test.first", pid: 1),
+                    DiscoveredAudioApp(name: "Same Name", bundleID: "test.second", pid: 2),
+                    DiscoveredAudioApp(name: "Third", bundleID: "test.third", pid: 3)]
+        owner.rebuildHeaderTargetMenu(discoveredApps: apps)
+        try require(owner.headerTargetPopup.numberOfItems == 5, "duplicate app titles retain all menu entries")
+        for (index, app) in apps.enumerated() {
+            owner.headerTargetPopup.selectItem(at: index + 2); owner.headerTargetChanged()
+            try require(owner.draftTarget.bundleID == app.bundleID, "visible app maps to correct bundle ID")
+            try require(owner.activeTarget == nil && owner.pendingAudioOperation == nil && owner.processor == nil,
+                        "draft selection does not create or change an audio session")
+        }
+        owner.activeTarget = .system
+        owner.setDraftTarget(.app(bundleID: "test.next", name: "Next"))
+        try require(owner.activeTarget == .system, "editing draft preserves active target")
+        let before = preferences.dictionaryRepresentation()
+        owner.expertModeButton.state = .on; owner.expertModeChanged()
+        owner.expertModeButton.state = .off; owner.expertModeChanged()
+        for (key, value) in before where key != "expertModeEnabled" {
+            try require(NSDictionary(dictionary: [key: value]).isEqual(to: [key: preferences.object(forKey: key)!]),
+                        "Advanced must preserve setting \(key)")
+        }
+        let language = AppLanguage.current
+        owner.languagePopup.selectItem(at: 1)
+        try require(owner.languagePopup.sendAction(owner.languagePopup.action, to: owner.languagePopup.target), "actual language menu action dispatches")
+        try require(owner.languageStatusLabel.stringValue.contains("한국어"), "language status confirms selected language")
+        try require(preferences.string(forKey: AppLanguage.preferenceKey) == "ko" && AppLanguage.current == language,
+                    "language is saved for next launch without mutating this session")
+        for size in [NSSize(width: 940, height: 640), NSSize(width: 1080, height: 700)] {
+            owner.window.setFrame(NSRect(origin: owner.window.frame.origin, size: size), display: false)
+            owner.layoutApplication()
+            owner.window.contentView?.layoutSubtreeIfNeeded()
+            for page in AppPage.allCases {
+                owner.selectedPage = page; owner.updateSelectedPage()
+                try require(owner.pageViews.filter { !$0.value.isHidden }.count == 1, "only selected page visible")
+                try require(owner.headerView.frame.minY >= owner.pageHostView.frame.maxY, "common header does not overlap page")
+            }
+            for control in [owner.headerTargetPopup!, owner.headerChooseButton!, owner.headerClearButton!,
+                            owner.headerApplyButton!, owner.headerStopButton!] as [NSView] {
+                try require(owner.headerView.bounds.contains(control.frame), "header controls fit minimum width")
+            }
+            try require(owner.modelPresetsView.frame.minY >= 0, "presets fit minimum height")
+            let controls = [owner.headerTargetPopup!, owner.headerChooseButton!, owner.headerClearButton!,
+                            owner.headerApplyButton!, owner.headerStopButton!] as [NSView]
+            for pair in zip(controls, controls.dropFirst()) {
+                try require(pair.0.frame.maxX <= pair.1.frame.minX, "header controls do not overlap")
+            }
+            try require(owner.modelExplanationView.frame.minY >= 0, "Sound explanation fits minimum height")
+            owner.expertModeButton.state = .on; owner.expertModeChanged()
+            func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+            for case let caption as NSTextField in descendants(owner.advancedSettingsView) where caption.tag == 9970 {
+                let measured = (caption.stringValue as NSString).size(withAttributes: [.font: caption.font!]).width
+                try require(measured <= caption.frame.width, "diagnostic caption fits: \(caption.stringValue)")
+            }
+            for segment in 0..<3 {
+                owner.modelSelector.selectedSegment = segment; owner.modelChanged()
+                owner.layoutModelPage()
+                for label in [owner.intensityNameLabel!, owner.bodyNameLabel!, owner.oversamplingModeLabel!] where !label.isHidden {
+                    let measured = (label.stringValue as NSString).size(withAttributes: [.font: label.font!]).width
+                    try require(measured <= label.frame.width, "full control label fits: \(label.stringValue)")
+                }
+                try require(!owner.oversamplingModeLabel.frame.intersects(owner.oversamplingModeControl.frame),
+                            "oversampling title and options occupy separate rows")
+                for button in owner.presetButtons where button.isEnabled {
+                    let measured = (button.title as NSString).size(withAttributes: [.font: button.font!]).width
+                    try require(measured + 20 <= button.frame.width, "preset title fits: \(button.title)")
+                }
+                try require(owner.modelDocument.bounds.contains(owner.modelPresetsView.frame), "presets remain reachable by scrolling")
+                try require(owner.sessionView.frame.maxY <= owner.pageHostView.frame.minY, "session footer cannot cover page controls")
+            }
+        }
+        // Preview rendering is opt-in, uses isolated preferences and never starts audio.
+        if let directory = ProcessInfo.processInfo.environment["TIMBREDOCK_UI_PREVIEW_DIR"] {
+            let url = URL(fileURLWithPath: directory, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            owner.activeTarget = nil; owner.setDraftTarget(.system)
+            owner.preferenceStore.set(AppLanguage.current.rawValue, forKey: AppLanguage.preferenceKey)
+            owner.languagePopup.selectItem(at: AppLanguage.current == .english ? 0 : 1)
+            owner.refreshLanguagePresentation()
+            func capture(_ name: String) throws {
+                owner.window.contentView?.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
+                if let view = owner.window.contentView,
+                   let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: bitmap)
+                    if let data = bitmap.representation(using: .png, properties: [:]) {
+                        try data.write(to: url.appendingPathComponent("\(name).png"))
+                    }
+                }
+            }
+            for (sizeName, size) in [("regular", NSSize(width: 1180, height: 780)), ("minimum", NSSize(width: 940, height: 618))] {
+                owner.window.setContentSize(size); owner.layoutApplication()
+                for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                    owner.window.appearance = NSAppearance(named: appearance)
+                    for page in AppPage.allCases {
+                        owner.selectedPage = page; owner.updateSelectedPage()
+                        if page == .sound {
+                            for segment in 0..<3 {
+                                owner.modelSelector.selectedSegment = segment; owner.modelChanged()
+                                try capture("\(sizeName)-\(name)-sound-\(segment)")
+                            }
+                        } else { try capture("\(sizeName)-\(name)-\(page.rawValue)") }
+                    }
+                }
+            }
+        }
+        print("Redesign window checks passed: \(assertions) assertions (draft targets, duplicate names, language, Advanced, five pages, minimum window).")
+    }
+
     static func runOutputConditioningPresentationChecks() throws {
-        let owner = NativeAppDelegate()
-        owner.outputConditioningEnabled = true
-        owner.outputConditioningModeRaw = OutputConditioningMode.bypass.rawValue
-        owner.outputConditioningFactor = 2
+        let suite = "timbredock.output-ui.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let owner = NativeAppDelegate(); owner.preferenceStore = preferences
+        owner.outputConditioningEnabled = false
         owner.outputConditioningHeadroomDB = -6
         let page = owner.makeOutputConditioningPage()
         var assertions = 0
-        func require(_ value: @autoclosure () -> Bool, _ message: String) throws {
+        func require(_ condition: Bool, _ message: String) throws {
             assertions += 1
-            guard value() else { throw AppError.message("Output conditioning UI: \(message)") }
+            if !condition { throw AppError.message("Output UI: \(message)") }
         }
-        func saveReviewImage(_ name: String) throws {
-            guard let directory = ProcessInfo.processInfo.environment["LOWEND_CONDITIONING_UI_OUTPUT"] else { return }
-            // The test changes private model fields directly; synchronize the
-            // pickers before rendering as a real user selection would do.
-            owner.selectConditioningPopup(owner.outputConditioningModePopup,
-                forRaw: owner.outputConditioningModeRaw, in: OutputConditioningMode.allCases.map { $0.rawValue })
-            owner.selectConditioningPopup(owner.outputConditioningFilterPopup,
-                forRaw: owner.outputConditioningFilterRaw, in: ResamplingFilterMode.allCases.map { $0.rawValue })
-            owner.outputConditioningFactorPopup.selectItem(at: 0)
-            page.appearance = NSAppearance(named: .darkAqua)
-            page.layoutSubtreeIfNeeded()
-            guard let bitmap = page.bitmapImageRepForCachingDisplay(in: page.bounds) else {
-                throw AppError.message("Could not allocate conditioning UI review bitmap")
-            }
-            page.cacheDisplay(in: page.bounds, to: bitmap)
-            guard let data = bitmap.representation(using: .png, properties: [:]) else {
-                throw AppError.message("Could not encode conditioning UI review bitmap")
-            }
-            let folder = URL(fileURLWithPath: directory, isDirectory: true)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try data.write(to: folder.appendingPathComponent("\(name).png"))
-        }
-        try require(owner.outputConditioningHeadroomSlider.isEnabled, "Bypass preserves editable headroom for the next 2x run")
-        try require(!owner.outputConditioningFactorPopup.isEnabled, "Bypass has no DAC factor")
-        try require(owner.outputConditioningHeadroomCaption.stringValue.contains("미적용"), "Bypass explains no effect")
-        try saveReviewImage("headroom-bypass")
-        owner.outputConditioningModeRaw = OutputConditioningMode.pcmOversampling.rawValue
-        for factor in [4, 8] {
-            owner.outputConditioningFactor = factor
-            owner.updateOutputConditioningStatus()
-            try require(owner.outputConditioningHeadroomSlider.isEnabled, "Offline factor preserves the requested headroom setting")
-            try require(owner.outputConditioningFactorPopup.isEnabled, "User can return from offline factor to 2x")
-        }
-        owner.outputConditioningFactor = 2
+        preferences.set(true, forKey: RedesignPreferences.Keys.noticePending)
         owner.updateOutputConditioningStatus()
-        try require(owner.outputConditioningHeadroomSlider.isEnabled, "2x may be configured before starting")
-        try require(owner.outputConditioningHeadroomCaption.stringValue.contains("대기"), "Armed is not active")
-        // Diagnostics has never been constructed: live-state updates must still
-        // refresh the controls on the output page.
+        try require(!owner.outputMigrationDismissButton.isHidden, "migration notice remains until acknowledged")
+        owner.dismissOutputMigrationNotice()
+        _ = RedesignPreferences.migrate(preferences)
+        owner.updateOutputConditioningStatus()
+        try require(owner.outputMigrationDismissButton.isHidden && owner.outputMigrationNoticeLabel.isHidden,
+                    "acknowledged migration notice stays dismissed after relaunch migration")
+        try require(owner.outputRateModePopup.numberOfItems == 3, "exactly three exclusive modes")
+        try require(owner.outputConditioningFilterPopup.numberOfItems == 2, "only Short/Long filters")
+        try require(owner.outputConditioningDSDPopup == nil && owner.outputConditioningFactorPopup == nil,
+                    "unsupported live controls are absent")
+        try require(!owner.outputConditioningHeadroomSlider.isEnabled, "Standard has no applied upsampling gain")
+        owner.outputRateModePopup.selectItem(at: 1); owner.outputRateModeChanged()
+        try require(owner.outputConditioningEnabled && !owner.automaticRateMatchingEnabled, "2x excludes automatic matching")
+        try require(owner.outputConditioningHeadroomSlider.isEnabled, "inactive 2x gain can be configured")
+        try require(owner.outputConditioningHeadroomCaption.stringValue.contains(L10n.string("main.output.state.armed")), "saved is distinguished from active")
         owner.currentLivePCM2xActive = true
+        owner.currentTapSampleRate = 48_000; owner.currentProcessingSampleRate = 96_000
         owner.refreshDiagnosticsPanel()
-        try require(owner.outputConditioningHeadroomCaption.stringValue.contains("2× 출력 중"), "Active notification reaches output page")
-        try saveReviewImage("headroom-active")
-        owner.outputConditioningEnabled = false
-        owner.updateOutputConditioningStatus()
-        try require(!owner.outputConditioningHeadroomSlider.isEnabled
-                    && owner.outputConditioningHeadroomCaption.stringValue.contains("해제 대기"), "Requested off waits for actual stop")
+        try require(owner.outputConditioningStatusLabel.stringValue == L10n.format("main.output.state.activeRates", "48.0 kHz", "96.0 kHz"),
+                    "asynchronous activation refreshes the main output status")
+        let gainNote = owner.outputDocument.viewWithTag(OutputPageTag.gainNote.rawValue) as! NSTextField
+        owner.currentStopFailure = "fixture restoration failure"
+        owner.refreshDiagnosticsPanel()
+        try require(gainNote.stringValue.contains(L10n.string("main.output.state.stopFailed")), "failed cleanup overrides stale active gain flag")
+        owner.currentStopFailure = nil
+        owner.refreshDiagnosticsPanel()
+        try require(gainNote.stringValue.contains(L10n.string("main.output.state.active")), "gain note follows actual active state")
+        owner.outputConditioningHeadroomSlider.doubleValue = -9; owner.outputConditioningHeadroomChanged()
+        try require(gainNote.stringValue.contains(formatDbText(-9.0)), "gain explanation follows slider edits")
+        owner.outputConditioningHeadroomSlider.doubleValue = -6; owner.outputConditioningHeadroomChanged()
+        try require(owner.outputConditioningHeadroomCaption.stringValue.contains(L10n.string("main.output.state.active")), "actual active state refreshes without diagnostics page")
+        owner.outputRateModePopup.selectItem(at: 2); owner.outputRateModeChanged()
+        try require(!owner.outputConditioningEnabled && owner.automaticRateMatchingEnabled, "Match Source excludes 2x")
+        try require(owner.outputConditioningHeadroomCaption.stringValue.contains(L10n.string("main.output.state.release2x")), "actual 2x release is pending")
         owner.currentLivePCM2xActive = false
-        owner.refreshDiagnosticsPanel()
-        try require(owner.outputConditioningHeadroomCaption.stringValue.contains("꺼짐"), "Confirmed off is explicit")
-        owner.outputConditioningEnabled = true
-        owner.currentLivePCM2xFallback = "장치 미지원 검사"
-        owner.refreshDiagnosticsPanel()
-        try require(owner.outputConditioningHeadroomSlider.isEnabled, "Failed 2x must still allow editing the requested gain")
-        try require(owner.outputConditioningHeadroomCaption.toolTip == "장치 미지원 검사", "Fallback reason remains available")
-        owner.outputConditioningModeRaw = OutputConditioningMode.pcmWithDither.rawValue
-        owner.updateOutputConditioningStatus()
-        try require(owner.outputConditioningHeadroomSlider.isEnabled, "Inactive mode preserves editable headroom without applying it")
-        owner.outputConditioningModeRaw = OutputConditioningMode.pcmOversampling.rawValue
-        owner.updateOutputConditioningStatus()
-        try require(owner.outputConditioningHeadroomSlider.isEnabled, "Returning to 2x does not retain stale fallback")
-        owner.currentStopFailure = "정리 실패 검사"
-        owner.refreshDiagnosticsPanel()
-        try require(owner.outputConditioningHeadroomSlider.isEnabled
-                    && owner.outputConditioningHeadroomCaption.stringValue.contains("중지 미완료"), "Pending teardown preserves editable settings")
-        try require(owner.outputConditioningHeadroomSlider.doubleValue == -6
-                    && owner.outputConditioningHeadroomDB == -6, "State transitions preserve requested gain")
-        try require(owner.outputConditioningHeadroomSlider.isContinuous, "Headroom edits are continuous")
-        for width: CGFloat in [392, 515, 616, 950] {
-            page.setFrameSize(NSSize(width: width, height: 700))
-            let slider = owner.outputConditioningHeadroomSlider.frame
-            let value = owner.outputConditioningHeadroomValueLabel.frame
-            try require(slider.maxX + 15 <= value.minX, "Slider and value must not overlap at page width \(width)")
-            try require(value.maxX <= width - 23 && slider.minX >= 23, "Headroom row stays within page margins")
-            try require(owner.outputConditioningModePopup.frame.width >= 340
-                        && owner.outputConditioningModePopup.frame.maxX <= width - 23,
-                        "Output mode remains readable after resize")
+        owner.outputRateModePopup.selectItem(at: 1); owner.outputRateModeChanged()
+        owner.currentLivePCM2xFallback = "unsupported fixture"; owner.refreshDiagnosticsPanel()
+        try require(owner.outputConditioningHeadroomSlider.isEnabled && owner.outputConditioningHeadroomCaption.toolTip == "unsupported fixture", "fallback preserves editable saved gain and reason")
+        owner.currentStopFailure = "retained graph fixture"; owner.refreshDiagnosticsPanel()
+        try require(owner.outputConditioningHeadroomSlider.isEnabled && owner.outputConditioningHeadroomCaption.stringValue.contains(L10n.string("main.output.state.stopFailed")), "failed stop preserves saved gain")
+        try require(owner.outputConditioningHeadroomSlider.doubleValue == -6 && owner.outputConditioningHeadroomSlider.isContinuous, "gain preserved and continuous")
+        for width: CGFloat in [730, 769, 950] {
+            page.setFrameSize(NSSize(width: width, height: 490)); owner.layoutOutputConditioningPage()
+            let slider = owner.outputConditioningHeadroomSlider.frame, value = owner.outputConditioningHeadroomValueLabel.frame
+            try require(slider.maxX + 4 <= value.minX && value.maxX <= owner.outputDocument.bounds.width - 23,
+                        "gain controls fit width \(width)")
+            for child in owner.outputDocument.subviews {
+                try require(owner.outputDocument.bounds.contains(child.frame), "output content stays inside scroll document")
+            }
         }
-        print("OutputConditioningPresentationChecks: \(assertions) assertions; actual controls, live-state refresh without Diagnostics, pending/fallback/stop state, preserved gain, four page widths; no device or visible-window operation.")
+        print("OutputConditioningPresentationChecks: \(assertions) assertions; exclusive modes, no unsupported controls, saved/active/fallback/stop state, gain and scroll layout passed")
     }
 
     /// Exercise direct model selection and gain edits against the real manager/IOProc/ring
     /// with simulated hardware. All preference writes use a disposable suite.
+    static func runTrebleSignalChecks() throws {
+        let suite = "timbredock.treble-signal.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let owner = NativeAppDelegate(); owner.preferenceStore = preferences
+        let page = owner.makeModelPage()
+        defer { withExtendedLifetime(page) {} }
+        let io = GraphCheckIO()
+        let access = try SystemAudioProcessor.GraphCheckAccess(io: io)
+        access.withProcessorForUICheck { owner.processor = $0 }
+        defer { owner.processor = nil; _ = access.stop() }
+        var assertions = 0
+        func require(_ condition: Bool, _ message: String) throws {
+            assertions += 1
+            if !condition { throw AppError.message("Treble signal: \(message)") }
+        }
+        var lastSecondHarmonic = 0.0
+        func measure(rate: Double, frequency: Double, model: Int, drive: Double, added: Double) throws -> Double {
+            owner.modelSelector.selectedSegment = model; owner.modelChanged()
+            owner.intensitySlider.doubleValue = drive; owner.bodySlider.doubleValue = added
+            owner.sliderChanged(); access.managerBarrier()
+            let before = access.state()
+            _ = access.consumeOutput(Int((before.written - before.read) / 2), advanceRamp: false)
+            var squared = 0.0; var count = 0
+            var real = 0.0, imaginary = 0.0
+            let frameCount = Int(rate * 2)
+            for start in stride(from: 0, to: frameCount, by: 512) {
+                let frames = min(512, frameCount - start)
+                let input = (0..<frames).flatMap { offset -> [Float] in
+                    let value = Float(0.5 * sin(2 * Double.pi * frequency * Double(start + offset) / rate))
+                    return [value, value]
+                }
+                io.capture(interleaved: input)
+                let output = access.consumeOutput(frames, advanceRamp: false)
+                try require(output.count == input.count && output.allSatisfy(\.isFinite), "finite full output")
+                for sample in 0..<output.count where start + sample / 2 >= Int(rate) {
+                    let delta = Double(output[sample] - input[sample]); squared += delta * delta; count += 1
+                    if rate == 48_000 && frequency == 8_000 {
+                        let angle = 2 * Double.pi * 16_000 * Double(start + sample / 2) / rate
+                        real += delta * cos(angle); imaginary -= delta * sin(angle)
+                    }
+                }
+            }
+            try require(owner.processor?.receivedTone?.model == owner.selectedDSPModel(), "actual callback acknowledges the selected model")
+            try require(abs((owner.processor?.receivedTone?.intensity ?? -1) - drive) < 0.011
+                && abs((owner.processor?.receivedTone?.body ?? -1) - added) < 0.011, "actual callback acknowledges both controls")
+            lastSecondHarmonic = 2 * hypot(real, imaginary) / Double(count)
+            return sqrt(squared / Double(count))
+        }
+        for rate in [44_100.0, 48_000.0, 88_200.0, 96_000.0] {
+            try access.seed(rate)
+            let creates = io.counts["createTap"] ?? 0
+            for frequency in [1_000.0, 6_000.0, 8_000.0, 12_000.0] {
+                let dry = try measure(rate: rate, frequency: frequency, model: 0, drive: 0, added: 0)
+                let zero = try measure(rate: rate, frequency: frequency, model: 2, drive: 100, added: 0)
+                let zeroDrive = try measure(rate: rate, frequency: frequency, model: 2, drive: 0, added: 100)
+                let subtle = try measure(rate: rate, frequency: frequency, model: 2, drive: 12, added: 4)
+                let subtleHarmonic = lastSecondHarmonic
+                let strong = try measure(rate: rate, frequency: frequency, model: 2, drive: 50, added: 16)
+                let strongHarmonic = lastSecondHarmonic
+                if rate == 48_000 && frequency == 8_000 {
+                    let ratio = strongHarmonic / max(subtleHarmonic, 1e-15)
+                    try require(subtleHarmonic > 1e-7 && abs(ratio / (0.04 / 0.000576) - 1) < 0.02,
+                                "16kHz second harmonic scales with drive squared times added harmonics")
+                    print(String(format: "TrebleSignalChecks 16k harmonic amplitude Subtle %.9f Strong %.9f ratio %.3f (expected 69.444)", subtleHarmonic, strongHarmonic, ratio))
+                }
+                let reported = try measure(rate: rate, frequency: frequency, model: 2, drive: 66.93, added: 15.79)
+                let maximum = try measure(rate: rate, frequency: frequency, model: 2, drive: 100, added: 100)
+                let backToDry = try measure(rate: rate, frequency: frequency, model: 0, drive: 0, added: 0)
+                try require(dry < 1e-7 && zero < 1e-7 && zeroDrive < 1e-7 && backToDry < 1e-7, "Off and zero added harmonics preserve dry samples")
+                try require(maximum > 1e-8 && maximum > reported && reported > strong && strong >= subtle,
+                            "actual UI parameter updates create increasing measurable output changes at \(rate)/\(frequency)")
+                let db = [subtle, strong, reported, maximum].map { 20 * log10(max($0, 1e-15)) }
+                print(String(format: "TrebleSignalChecks %.0f Hz input %.0f Hz: residual RMS dBFS Subtle %.2f / Strong %.2f / reported %.2f / max %.2f", rate, frequency, db[0], db[1], db[2], db[3]))
+            }
+            try require(io.counts["createTap"] == creates, "live model/parameter edits must not recreate capture")
+            try require(access.stop(), "test graph tears down before the next sample rate")
+            try require(owner.processor?.receivedTone == nil, "stopped processor must hide historical callback receipt")
+        }
+        // The reported session used live PCM 2x. Compare against Off through
+        // the same resampler/gain, rather than comparing delayed 2x samples to dry input.
+        for rate in [44_100.0, 48_000.0] {
+            try access.seed(rate)
+            io.onPause = {
+                let state = access.state()
+                io.capture(256)
+                if io.outputIsRunning { _ = access.consumeOutput(Int(256 * state.outputRate / state.tapRate)) }
+            }
+            access.live2x(true)
+            try require(access.state().live2x && access.state().outputRate == rate * 2, "real 2x test path activated")
+            func render(model: Int) -> [Float] {
+                owner.modelSelector.selectedSegment = model; owner.modelChanged()
+                owner.intensitySlider.doubleValue = 100; owner.bodySlider.doubleValue = 100
+                owner.sliderChanged(); access.managerBarrier()
+                let state = access.state()
+                _ = access.consumeOutput(Int((state.written - state.read) / 2), advanceRamp: false)
+                var result: [Float] = []
+                for start in stride(from: 0, to: Int(rate * 2), by: 512) {
+                    let frames = min(512, Int(rate * 2) - start)
+                    let input = (0..<frames).flatMap { offset -> [Float] in
+                        let value = Float(0.5 * sin(2 * Double.pi * 8000 * Double(start + offset) / rate))
+                        return [value, value]
+                    }
+                    io.capture(interleaved: input)
+                    result.append(contentsOf: access.consumeOutput(frames * 2, advanceRamp: false))
+                }
+                return Array(result.suffix(Int(rate) * 4))
+            }
+            let creates = io.counts["createTap"]
+            let dry = render(model: 0), wet = render(model: 2), back = render(model: 0)
+            try require(dry.count == wet.count && wet.allSatisfy(\.isFinite), "complete finite 2x output")
+            let residual = sqrt(zip(wet, dry).reduce(0.0) { $0 + pow(Double($1.0 - $1.1), 2) } / Double(wet.count))
+            let restored = zip(back, dry).map { abs($0 - $1) }.max() ?? 1
+            try require(residual > 1e-4 && restored < 1e-6, "2x preserves the harmonic difference and returns to Off")
+            try require(io.counts["createTap"] == creates, "tone edits on 2x do not recreate capture")
+            print(String(format: "TrebleSignalChecks PCM2x %.0f -> %.0f Hz, 8k input: max residual %.2f dBFS, Off return max delta %.9f", rate, rate * 2, 20 * log10(residual), restored))
+            io.onPause = nil
+            try require(access.stop(), "2x fixture stops and restores")
+        }
+        print("TrebleSignalChecks: \(assertions) assertions passed; actual UI -> manager -> registered IOProc -> DSP -> output ring, simulated hardware, no playback.")
+    }
+
     static func runLiveControlEditingChecks() throws {
         let suite = "lowend.control-editing-check.\(UUID().uuidString)"
         let preferences = UserDefaults(suiteName: suite)!
@@ -2524,7 +3265,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             try require(owner.modelSelector.selectedSegment == index
                 && preferences.integer(forKey: "selectedModel") == index,
                 "Direct selection and saved model must change together")
-            let names = ["Bypass", "LowEnd", "Exciter Drive"]
+            let names = [L10n.string("main.sound.value.bypass"), L10n.string("main.sound.bass.amount"), L10n.string("main.sound.treble.drive")]
             try require(owner.intensityNameLabel.stringValue == names[index], "Direct selection must refresh the model controls")
         }
         func editHeadroom(_ db: Double, synchronize: Bool = true) throws {
@@ -2604,15 +3345,15 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         try drainNotifications { owner.currentProcessingFailure != nil }
         try require(!access.state().started && !owner.currentLivePCM2xActive,
             "Failed target and rollback must remain stopped")
-        try require(owner.statusLabel.stringValue.contains("처리 중단")
-            && owner.outputConditioningRuntimeLabel.stringValue.contains("중단"),
+        try require(owner.statusLabel.stringValue.contains(L10n.string("main.detail.17370156d9"))
+            && owner.outputConditioningRuntimeLabel.stringValue == L10n.string("main.detail.c4261b4bf6"),
             "Actual processing failure must replace stale running text")
         let beforeStoppedEdit = io.counts
         try editHeadroom(-12)
         try selectModel(2)
         access.managerBarrier()
         try require(io.counts == beforeStoppedEdit, "Settings edits must not restart or clean up the failed graph")
-        try require(owner.statusLabel.stringValue.contains("처리 중단"), "Model edit must preserve stopped status")
+        try require(owner.statusLabel.stringValue.contains(L10n.string("main.detail.17370156d9")), "Model edit must preserve stopped status")
         try require(access.stop(), "Explicit Stop must finish simulated cleanup")
         print("LiveControlEditingChecks: \(assertions) assertions; direct model selection, pending activation edits and active 2x sample gain, recovered fallback and stopped editing, actual manager notifications; simulated hardware, isolated preferences, no visible window.")
     }
@@ -2658,8 +3399,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             let modelPage = owner.makeModelPage()
             let outputPage = owner.makeOutputConditioningPage()
             owner.allSystemButton = NSButton(title: "", target: owner, action: #selector(startAllAudio))
-            owner.routingStartAppButton = NSButton(title: "특정 앱 적용", target: owner, action: #selector(startSelectedApp))
-            owner.automaticRateMatchButton = NSButton(checkboxWithTitle: "자동", target: owner,
+            owner.routingStartAppButton = NSButton(title: L10n.string("main.detail.a2892e2b7c"), target: owner, action: #selector(startSelectedApp))
+            owner.automaticRateMatchButton = NSButton(checkboxWithTitle: L10n.string("main.detail.ca7eb2ef0a"), target: owner,
                                                       action: #selector(automaticRateMatchChanged))
             let quitCount = RuntimeSnapshotBox(0)
             owner.finishRequestedQuit = { quitCount.store(quitCount.load() + 1) }
@@ -2698,29 +3439,28 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             owner.diagAudioFlowValue = NSTextField(labelWithString: "")
             owner.updateDiagnostics()
             try require(f.access.state().started && f.lease.isHeld && owner.spectrumAnalyzer != nil
-                && owner.statusLabel.stringValue == "오디오 데이터 대기"
-                && owner.diagAudioFlowValue.stringValue == "오디오 데이터 대기",
+                && owner.statusLabel.stringValue == L10n.string("main.state.waitingData")
+                && owner.diagAudioFlowValue.stringValue == L10n.string("main.state.waitingData"),
                 "No-data Start must retain its graph and show waiting, not running")
-            try require(owner.statusLabel.toolTip?.contains("권한") == false
-                && owner.statusLabel.toolTip?.contains("접근 요청") == true,
+            try require(owner.statusLabel.toolTip == AudioFlowProgress.waitingHelp,
                 "Waiting must explain conditional access requests, not assert permission denial")
             _ = f.access.consumeOutput(512)
             owner.updateDiagnostics()
             try require(f.processor.diagnosticsSnapshot().outputUnderrunSamples == 1024
                 && !f.processor.diagnosticsSnapshot().audioFlow.isConfirmed
-                && owner.statusLabel.stringValue == "오디오 데이터 대기",
+                && owner.statusLabel.stringValue == L10n.string("main.state.waitingData"),
                 "Underrun padding must not count as real input/output progress")
             owner.modelSelector.selectedSegment = 1
             owner.modelChanged()
             owner.applyPreset(at: 0)
-            try require(owner.statusLabel.stringValue == "오디오 데이터 대기",
+            try require(owner.statusLabel.stringValue == L10n.string("main.state.waitingData"),
                         "Model and preset edits must preserve the waiting status")
             owner.modelSelector.selectedSegment = 0
             owner.modelChanged()
             f.access.managerBarrier()
             f.io.capture(256, sample: 0)
             owner.updateDiagnostics()
-            try require(owner.statusLabel.stringValue == "출력 데이터 대기"
+            try require(owner.statusLabel.stringValue == L10n.string("runtime.flow.waitingOutput")
                 && f.processor.diagnosticsSnapshot().audioFlow.producedSamples == 512
                 && f.processor.diagnosticsSnapshot().audioFlow.consumedSamples == 0,
                 "Capture without real output consumption must remain waiting")
@@ -2728,8 +3468,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             owner.updateDiagnostics()
             try require(silent.count == 512 && silent.allSatisfy { $0 == 0 }
                 && f.processor.diagnosticsSnapshot().audioFlow.isConfirmed
-                && owner.statusLabel.stringValue.contains("처리 중:")
-                && owner.diagAudioFlowValue.stringValue == "입력·출력 데이터 확인",
+                && owner.statusLabel.stringValue.contains(L10n.string("main.detail.4ef2c9218b"))
+                && owner.diagAudioFlowValue.stringValue == L10n.string("runtime.flow.confirmed"),
                 "Legitimate silent PCM must confirm flow without a level threshold")
             owner.updateDiagnostics()
             try require(owner.statusLabel.toolTip == nil,
@@ -2745,7 +3485,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             }, stop: base.stop)
             owner.startAllAudio()
             try pump("Early data fixture did not complete") { owner.pendingAudioOperation == nil }
-            try require(owner.statusLabel.stringValue.contains("처리 중:")
+            try require(owner.statusLabel.stringValue.contains(L10n.string("main.detail.4ef2c9218b"))
                 && f.processor.diagnosticsSnapshot().audioFlow.producedSamples == 256
                 && f.processor.diagnosticsSnapshot().audioFlow.consumedSamples == 256,
                 "Main completion must not reset a baseline after real data already arrived")
@@ -2765,20 +3505,20 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             let next = f.processor.diagnosticsSnapshot().audioFlow
             try require(next.generation > previous.generation && !next.isConfirmed
                 && next.producedSamples == 0 && next.consumedSamples == 0
-                && f.access.state().written > 0 && owner.statusLabel.stringValue == "오디오 데이터 대기",
+                && f.access.state().written > 0 && owner.statusLabel.stringValue == L10n.string("main.state.waitingData"),
                 "Old cumulative data must not confirm a replacement graph")
             f.io.capture(128, sample: 0)
             _ = f.access.consumeOutput(128, advanceRamp: false)
             owner.updateDiagnostics()
             try require(f.processor.diagnosticsSnapshot().audioFlow.isConfirmed
-                && owner.statusLabel.stringValue.contains("처리 중:"),
+                && owner.statusLabel.stringValue.contains(L10n.string("main.detail.4ef2c9218b")),
                 "Replacement graph did not become confirmed after its own silent PCM")
         }
 
         try runCase("audio-flow-waiting-stop-quit-and-old-session") { owner, f, quit in
             owner.startAllAudio()
             try pump("Waiting Stop fixture did not start") { owner.pendingAudioOperation == nil }
-            try require(owner.stopAndWaitForCheck() && owner.statusLabel.stringValue == "중지됨"
+            try require(owner.stopAndWaitForCheck() && owner.statusLabel.stringValue == L10n.string("main.monitor.state.stopped")
                 && owner.processor == nil && !f.lease.isHeld,
                 "Waiting for first data must not prevent a normal Stop")
             let replacement = try GUIAudioLifecycleCheckFixture()
@@ -2792,14 +3532,14 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
                     AudioFormatNotifications.isProcessingKey: true,
                     AudioFormatNotifications.livePCM2xFallbackKey: ""]))
             try require(owner.processor === replacement.processor
-                && owner.statusLabel.stringValue == "오디오 데이터 대기",
+                && owner.statusLabel.stringValue == L10n.string("main.state.waitingData"),
                 "A retired session's success must not confirm current flow")
             replacement.gate.arm("stop")
             try require(owner.applicationShouldTerminate(.shared) == .terminateCancel,
                         "Quit while waiting for data must await actual cleanup")
             try pump("Waiting Quit did not reach Stop") { replacement.gate.entered }
             owner.updateDiagnostics()
-            try require(owner.statusLabel.stringValue.contains("중지 중") && quit.load() == 0,
+            try require(owner.statusLabel.stringValue.contains(L10n.string("main.detail.0bc794996a")) && quit.load() == 0,
                         "A diagnostics tick must not overwrite pending Stop with flow status")
             replacement.gate.open()
             try pump("Waiting Quit did not finish") { owner.pendingAudioOperation == nil }
@@ -2818,7 +3558,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             try require(owner.pendingAudioOperation?.id == token && f.journal.count("make-off-main") == 1,
                         "Duplicate Apply replaced an initializing operation")
             try require(owner.processor == nil && !owner.allSystemButton.isEnabled
-                && owner.allSystemButton.accessibilityLabel()?.contains("시작 중") == true,
+                && owner.allSystemButton.accessibilityLabel()?.contains(L10n.string("main.detail.6e1c0e1050")) == true,
                 "Pending initialization lacks global accessible state")
             owner.stopAudio()
             try heartbeat()
@@ -2831,7 +3571,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
                 "Canceled initialization must retire without starting capture")
             try require(owner.audioLifecycleWorker.retainedSessionCountForCheck() == 0 && quit.load() == 0,
                         "Canceled initialization retained a worker owner or requested Quit")
-            try require(owner.allSystemButton.isEnabled && owner.allSystemButton.accessibilityLabel() == "전체 시스템 적용",
+            try require(owner.allSystemButton.isEnabled && owner.allSystemButton.accessibilityLabel() == L10n.string("main.detail.4ac9585a1d"),
                         "Finished operation did not restore the global Apply label")
         }
 
@@ -2852,7 +3592,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
                 && f.lease.isHeld && quit.load() == 0, "Pending Stop/Quit lost its token, owner or lease")
             try require(f.journal.count("stop-off-main") == 0 && f.journal.count("setOutputRate") == 0,
                         "Pending Stop/Quit ran cleanup or PCM negotiation before Start returned")
-            try require(owner.allSystemButton.accessibilityLabel()?.contains("중지 요청됨") == true,
+            try require(owner.allSystemButton.accessibilityLabel()?.contains(L10n.string("main.detail.af8289ed49")) == true,
                         "Global state does not explain deferred Stop")
             f.gate.open()
             try pump("Delayed Stop/Quit did not finish") { owner.pendingAudioOperation == nil }
@@ -2898,16 +3638,14 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             spatial.listenerX = 1.2; spatial.amount = 71; spatial.enabled = false
             owner.updateSpatialControls(from: spatial, notifyProcessor: true)
             owner.observeSourceSnapshot(SourceFormatSnapshot(activePlayers: [], formats: []))
-            owner.outputConditioningEnableButton.state = .on
-            owner.outputConditioningEnableChanged()
-            owner.outputConditioningModePopup.selectItem(at: 1)
-            owner.outputConditioningModeChanged()
+            owner.outputRateModePopup.selectItem(at: 1)
+            owner.outputRateModeChanged()
             owner.outputConditioningFilterRaw = ResamplingFilterMode.linearPhaseLong.rawValue
             owner.outputConditioningHeadroomSlider.doubleValue = -12
             owner.outputConditioningHeadroomChanged()
             try heartbeat()
             try require(owner.outputConditioningHeadroomDB == -12 && owner.pendingHeadroomEdit
-                && owner.statusLabel.stringValue.contains("시작 중")
+                && owner.statusLabel.stringValue.contains(L10n.string("main.detail.6e1c0e1050"))
                 && f.journal.count("setOutputRate") == 0 && f.journal.count("stopCapture") == 0,
                 "Pending edits must be saved without starting a transition or replacing pending status")
             f.gate.open()
@@ -2942,8 +3680,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             f.gate.arm("startCapture")
             owner.startAllAudio()
             try pump("Automatic-rate fixture did not hold Start") { f.gate.entered }
-            owner.automaticRateMatchButton.state = .on
-            owner.automaticRateMatchChanged()
+            owner.outputRateModePopup.selectItem(at: 2)
+            owner.outputRateModeChanged()
             owner.observeSourceSnapshot(SourceFormatSnapshot(activePlayers: [], formats: []))
             try heartbeat()
             f.gate.open()
@@ -2952,7 +3690,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             // Drain the real initial false notification and the latest true
             // submission's notification, rather than inventing either event.
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-            try require(owner.automaticRateMatchingEnabled && owner.automaticRateMatchButton.state == .on
+            try require(owner.automaticRateMatchingEnabled && owner.outputRateMode == .matchSource
                 && owner.preferenceStore.bool(forKey: "automaticRateMatchingEnabled"),
                 "Initial stale format notification overwrote the pending automatic-rate edit")
             try require(owner.currentDeviceSampleRate == 48_000 && owner.lastSourceObservation != nil,
@@ -3000,7 +3738,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
             owner.startAllAudio()
             try pump("Initializer error did not complete") { owner.pendingAudioOperation == nil }
             try require(owner.processor == nil && owner.spectrumAnalyzer == nil
-                && owner.statusLabel.stringValue.contains("실행 실패") && owner.allSystemButton.isEnabled
+                && owner.statusLabel.stringValue.contains(L10n.string("main.detail.3cf10d0a2f")) && owner.allSystemButton.isEnabled
                 && f.journal.count("start-off-main") == 0 && f.journal.count("stop-off-main") == 0,
                 "Initializer error started a graph, retained an owner or left Apply disabled")
         }
@@ -3065,13 +3803,13 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         }
         owner.updateDiagnostics()
         let received = owner.spatialControlModel.appliedStatusText
-        try require(publications == 1 && received?.contains("수신 확인 (0)") == true,
+        try require(publications == 1 && received?.contains(L10n.string("main.detail.5ba7c94f1c")) == true,
                     "Initial actual diagnostics did not publish receipt status")
         for _ in 0..<3 { owner.updateDiagnostics() }
         try require(publications == 1, "Identical receipt status republished the observed model")
         owner.lastSpatialSubmissionRevision = 7
         owner.updateDiagnostics()
-        try require(publications == 2 && owner.spatialControlModel.appliedStatusText?.contains("요청 7, 수신 0") == true,
+        try require(publications == 2 && owner.spatialControlModel.appliedStatusText?.contains(L10n.string("main.detail.f0820eb4bc")) == true,
                     "Changed pending request did not update its status")
         for _ in 0..<3 { owner.updateDiagnostics() }
         try require(publications == 2, "Identical pending status republished the observed model")
@@ -3155,13 +3893,13 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
                     "Successful Stop must retire the current processor")
         try require(owner.currentDeviceSampleRate == nil && owner.currentProcessingSampleRate == nil
                     && owner.currentTapSampleRate == nil && !owner.currentLivePCM2xActive
-                    && owner.compactOutputLabel.stringValue == "출력 포맷 대기 중",
+                    && owner.compactOutputLabel.stringValue == L10n.string("main.format.outputWaiting"),
                     "Stopped compact output must not retain the previous device rate")
         deliver(old.notificationSessionID, tap: 48_000, output: 96_000)
         deliver(current.notificationSessionID, tap: 44_100, output: 88_200)
         try require(owner.currentDeviceSampleRate == nil && owner.currentProcessingSampleRate == nil
                     && owner.currentTapSampleRate == nil && !owner.currentLivePCM2xActive
-                    && owner.compactOutputLabel.stringValue == "출력 포맷 대기 중",
+                    && owner.compactOutputLabel.stringValue == L10n.string("main.format.outputWaiting"),
                     "Retired notifications must not restore a stopped output display")
         try require(old.stop() && current.stop(), "Unstarted fixture cleanup failed")
         print("SpatialFormatBridgeChecks: \(assertions) assertions; actual format notification consumer, tap/output separation, session routing, stopped compact output and retired notifications, unchanged audio edits; injected processors, no graph/window/device query.")
@@ -3178,7 +3916,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
 
     private func showAudioStopFailure(_ failure: String) {
         currentStopFailure = failure
-        statusLabel?.stringValue = "중지 미완료: \(failure)"
+        statusLabel?.stringValue = L10n.format("main.status.stopIncomplete", String(describing: failure))
         rateMatchStatusText = failure
         currentLivePCM2xFallback = failure
         refreshDiagnosticsPanel()
@@ -3188,17 +3926,19 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     /// Only call after confirmed Stop, or when no processor has been created.
     private func clearStoppedAudioPresentation() {
         processor = nil
+        activeTarget = nil
+        refreshHeaderPresentation()
         currentStopFailure = nil
         currentProcessingFailure = nil
         if let lastSourceSnapshot { updateSourceDisplay(lastSourceSnapshot) }
         if statusLabel != nil {
-            statusLabel.stringValue = "중지됨"
+            statusLabel.stringValue = L10n.string("main.monitor.state.stopped")
             statusLabel.toolTip = nil
         }
         if formatLabel != nil {
-            formatLabel.stringValue = "처리 포맷 대기 중"
+            formatLabel.stringValue = L10n.string("main.format.formatWaiting")
         }
-        diagnosticsLabel?.stringValue = "XRuns 대기 중"
+        diagnosticsLabel?.stringValue = L10n.string("main.detail.4288e4c2ff")
         currentProcessingSampleRate = nil
         currentTapSampleRate = nil
         currentDeviceSampleRate = nil
@@ -3267,7 +4007,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         lastSourceSnapshot = snapshot
         let scope = processor?.capturedBundleIDs
         let selected = SourceFormatSelectionPolicy.select(formats: snapshot.formats, capturedBundleIDs: scope)
-        let text = selected?.indicatorText ?? (scope == nil ? snapshot.indicatorText : "Source: 선택한 캡처 대상의 재생 정보 대기 중")
+        let text = selected?.indicatorText ?? (scope == nil ? snapshot.indicatorText : L10n.string("main.detail.17e40846bd"))
         sourceFormatLabel?.stringValue = text
         sourceFormatLabel?.toolTip = text
         currentSourceSampleRate = selected?.sampleRate
@@ -3283,8 +4023,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         refreshAudioFlowPresentation(snapshot)
         let applied = processor.appliedSpatialRevision
         let spatialStatus = applied >= lastSpatialSubmissionRevision
-            ? "오디오 설정 수신 확인 (\(applied)); 짧은 전환 구간은 별도"
-            : "오디오 설정 수신 대기 (요청 \(lastSpatialSubmissionRevision), 수신 \(applied))"
+            ? L10n.format("main.detail.79b30d0268", String(describing: applied))
+            : L10n.format("main.detail.d5a49e4b76", String(describing: lastSpatialSubmissionRevision), String(describing: applied))
         // Publishing an unchanged status invalidates the observed Spatial page
         // and requests another stage frame even while its scene is idle.
         if spatialControlModel.appliedStatusText != spatialStatus {
@@ -3380,7 +4120,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
                 let hadFailure = currentProcessingFailure != nil
                 currentProcessingFailure = !processing && !fallback.isEmpty ? fallback : nil
                 if let failure = currentProcessingFailure {
-                    statusLabel?.stringValue = "처리 중단 · 오디오 적용에서 중지 후 다시 적용"
+                    statusLabel?.stringValue = L10n.string("main.detail.fb1550dce6")
                     statusLabel?.toolTip = failure
                 } else if hadFailure && processing {
                     refreshAudioFlowPresentation()
@@ -3406,6 +4146,8 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
     private func refreshRateMatchDeviceCapabilities() {
         do {
             let deviceID = try HardwareSampleRateTracker.defaultOutputDevice()
+            diagCachedDeviceID = deviceID
+            diagCachedDeviceName = HardwareSampleRateTracker.deviceName(for: deviceID)
             let capabilities = try HardwareSampleRateTracker.rateCapabilities(for: deviceID)
             currentDeviceSampleRate = try HardwareSampleRateTracker.nominalSampleRate(for: deviceID)
             supportedDeviceSampleRates = capabilities.supportedRates
@@ -3417,6 +4159,7 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         }
         updateCompactFormatSummary()
         updateRateMatchPreview()
+        refreshHeaderPresentation()
     }
 
     private func updateRateMatchPreview() {
@@ -3428,10 +4171,12 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         )
         rateMatchPreviewLabel?.stringValue = "\(preview.indicatorText) | \(rateMatchStatusText)"
         rateMatchPreviewLabel?.toolTip =
-            "\(preview.indicatorText)\n자동 Rate Matching: \(rateMatchStatusText)"
+            L10n.format("main.detail.934e62b10b", String(describing: preview.indicatorText), String(describing: rateMatchStatusText))
     }
 
 }
+
+private final class TopAlignedDocument: NSView { override var isFlipped: Bool { true } }
 
 private var nativeAppDelegateHolder: AnyObject?
 
@@ -3456,7 +4201,7 @@ private func installMainMenu(for app: NSApplication) {
     let appMenuItem = NSMenuItem()
     let appMenu = NSMenu(title: "LowEnd Native Audio")
     let quitItem = NSMenuItem(
-        title: "LowEnd Native Audio 종료",
+        title: L10n.string("main.detail.ab2c02d0e9"),
         action: #selector(NSApplication.terminate(_:)),
         keyEquivalent: "q"
     )
@@ -3470,20 +4215,20 @@ private func installMainMenu(for app: NSApplication) {
     // commands for keyboard shortcuts such as Command-A/C/V. A Quit-only menu
     // leaves precision editing with no standard Select All command.
     let editMenuItem = NSMenuItem()
-    let editMenu = NSMenu(title: "편집")
+    let editMenu = NSMenu(title: L10n.string("main.menu.edit"))
     for (title, action, key) in [
-        ("실행 취소", "undo:", "z"),
-        ("오려두기", "cut:", "x"),
-        ("복사", "copy:", "c"),
-        ("붙여넣기", "paste:", "v"),
-        ("전체 선택", "selectAll:", "a")
+        (L10n.string("main.menu.undo"), "undo:", "z"),
+        (L10n.string("main.menu.cut"), "cut:", "x"),
+        (L10n.string("main.menu.copy"), "copy:", "c"),
+        (L10n.string("main.menu.paste"), "paste:", "v"),
+        (L10n.string("main.menu.selectAll"), "selectAll:", "a")
     ] {
         let item = NSMenuItem(title: title, action: Selector(action), keyEquivalent: key)
         item.keyEquivalentModifierMask = [.command]
         // A nil target routes the command to the current native field editor.
         editMenu.addItem(item)
     }
-    let redo = NSMenuItem(title: "실행 복귀", action: Selector(("redo:")), keyEquivalent: "z")
+    let redo = NSMenuItem(title: L10n.string("main.menu.redo"), action: Selector(("redo:")), keyEquivalent: "z")
     redo.keyEquivalentModifierMask = [.command, .shift]
     editMenu.insertItem(redo, at: 1)
     editMenu.insertItem(.separator(), at: 2)
@@ -3552,7 +4297,9 @@ do {
         try runSpatialUIChecks()
         try NativeAppDelegate.runSpatialDiagnosticsChecks()
         try NativeAppDelegate.runSpatialFormatBridgeChecks()
+        try NativeAppDelegate.runRedesignWindowChecks()
         try NativeAppDelegate.runOutputConditioningPresentationChecks()
+        try NativeAppDelegate.runTrebleSignalChecks()
         try NativeAppDelegate.runLiveControlEditingChecks()
         try NativeAppDelegate.runGUIAudioLifecycleChecks()
         exit(0)
@@ -3564,6 +4311,8 @@ do {
         exit(0)
     }
     if case .selfTest = settings.mode {
+        try L10n.runOfflineChecks()
+        try RedesignPreferences.runOfflineChecks()
         try runInputValidationChecks()
         try runDSPParityChecks()
         try runOutputConditioningChecks()
@@ -3594,7 +4343,7 @@ do {
             exit(0)
         }
         let reason = processor.stopFailureDescription
-        fputs("중지 미완료: \(reason). SIGINT로 다시 시도할 수 있습니다.\n", stderr)
+        fputs(L10n.format("main.detail.e1700d5bad", String(describing: reason)), stderr)
     }
     signalSource.resume()
 

@@ -2,9 +2,11 @@
 
 [← Home](../README.en.md) · [한국어](development.md)
 
+This guide describes the v0.4.0 development source. The [v0.3.0 release](https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0) retains its original app and asset names.
+
 ## Build from source
 
-### LowEnd Native Audio
+### TimbreDock
 
 You need macOS 14.4 or newer and a current Xcode command-line or Swift toolchain.
 
@@ -12,7 +14,7 @@ You need macOS 14.4 or newer and a current Xcode command-line or Swift toolchain
 git clone https://github.com/Gomtanga/lowend-circuit.git
 cd lowend-circuit
 ./scripts/build-native-system-audio-app.sh
-open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/LowEnd Native Audio.app"
+open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/TimbreDock.app"
 ```
 
 The following helpers can start system-wide or per-application modes from the command line:
@@ -25,7 +27,7 @@ The following helpers can start system-wide or per-application modes from the co
 
 ## Verification
 
-The repository CI checks the portable C++ Core, Swift support cases, Swift and C++ DSP parity, and the LowEnd Native Audio build separately. Run the commands that match your change.
+The repository CI checks the portable C++ Core, Swift support cases, Swift and C++ DSP parity, and the TimbreDock build separately. Run the commands that match your change.
 
 ```sh
 cmake -S Source/Core -B build/core-tests -DCMAKE_BUILD_TYPE=Release -DLOWEND_CORE_BUILD_TESTING=ON
@@ -46,7 +48,7 @@ The bundle script builds Release, runs support checks, assembles and signs a sta
 
 ```sh
 LOWEND_BUILD_DIR=/tmp/lowend-build-qa \
-LOWEND_APP_DIR="/tmp/lowend-app-qa/LowEnd Native Audio.app" \
+LOWEND_APP_DIR="/tmp/lowend-app-qa/TimbreDock.app" \
 ./scripts/build-native-system-audio-app.sh
 ```
 
@@ -60,9 +62,9 @@ The real-time audio callback is designed to avoid memory allocation, locks, logg
 
 The Native live callback uses the Swift Circuit/HighExciter implementations in `TonalDSP.swift` and Spatial processing in `SpatialDSP.swift`. C++ `Source/Core` provides portable kernels and the parity comparison path. Spatial geometry is shared through its pure C++ function and C ABI. Agreement between two implementations is supplemented by independent impulse, response, DC, and transition fixtures.
 
-Live Output Conditioning supports PCM 2×. Higher factors, dither/noise shaping, and DSD/DoP are not connected to live output. The offline DoP packer stores 16 DSD bits and an 8-bit marker per channel in a 32-bit little-endian container `[payloadLow, payloadHigh, marker, 0]`, preserving partial payloads and marker phase across blocks. This format check does not establish complete DSD64/128/256 transport or hardware compatibility.
+The Output page exposes Standard, 2× Upsampling and Match Source Sample Rate. Live output conversion supports PCM 2×. Higher factors, dither/noise shaping, and DSD/DoP are not connected to live output. The offline DoP packer stores 16 DSD bits and an 8-bit marker per channel in a 32-bit little-endian container `[payloadLow, payloadHigh, marker, 0]`, preserving partial payloads and marker phase across blocks. This format check does not establish complete DSD64/128/256 transport or hardware compatibility.
 
-v0.3.0 includes the Spatial Stage redesign and audio-processing stabilization. See its release notes for included features and verification scope.
+See [the v0.4.0 redesign](redesign-v0.4.0.md) for the current implementation and acceptance checklist. Dated v0.3.0 evidence remains historical; it is not device acceptance for a new build.
 
 ## Repository layout
 

@@ -1,0 +1,4 @@
+/* English permission descriptions for the TimbreDock app bundle. */
+"CFBundleDisplayName" = "TimbreDock";
+"NSAudioCaptureUsageDescription" = "TimbreDock captures system or selected app audio so it can apply audio effects and play the processed signal to your speakers or headphones.";
+"NSAppleEventsUsageDescription" = "TimbreDock sends Apple events to Music to detect playback state and source format.";

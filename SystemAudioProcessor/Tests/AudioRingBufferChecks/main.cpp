@@ -244,6 +244,7 @@ void testQueueOverflowFinalAndAcknowledgment() {
     check(queue != nullptr, "control queue allocation");
     if (!queue) return;
     check(lc_control_event_queue_applied_revision(queue) == 0, "ack starts at zero");
+    check(lc_control_event_queue_dsp_receipt(queue) == 0, "DSP receipt starts unconfirmed");
     for (uint64_t revision = 1; revision <= 8; ++revision) {
         const auto event = eventFor(revision);
         check(lc_control_event_queue_push(queue, &event) == 1, "queue fills to capacity");
@@ -288,6 +289,8 @@ void testQueueOverflowFinalAndAcknowledgment() {
                 check(event.revision == expected && event.spatial.ll.delaySamples == expected * 3
                     && event.spatial.rr.gain == float(expected), "SPSC event payload and revision stay coherent");
                 lc_control_event_queue_acknowledge(queue, event.revision);
+                const uint64_t value = event.revision % 10001;
+                lc_control_event_queue_publish_dsp_receipt(queue, (UINT64_C(1) << 63) | (value << 16) | (value ^ 0xffff));
                 ++expected;
             } else {
                 std::this_thread::yield();
@@ -306,6 +309,9 @@ void testQueueOverflowFinalAndAcknowledgment() {
         const auto revision = lc_control_event_queue_applied_revision(queue);
         check(revision >= previous && revision <= count, "manager observes monotonic applied revision");
         previous = revision;
+        const auto receipt = lc_control_event_queue_dsp_receipt(queue);
+        if (receipt != 0) check((((receipt >> 16) & 0xffff) ^ (receipt & 0xffff)) == 0xffff,
+                               "DSP receipt is one coherent atomic word across threads");
         std::this_thread::yield();
     }
     producer.join(); consumer.join();

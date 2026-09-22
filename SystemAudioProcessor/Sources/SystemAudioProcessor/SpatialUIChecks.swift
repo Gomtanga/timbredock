@@ -163,27 +163,53 @@ func runSpatialUIChecks(snapshotDirectory: URL? = nil) throws {
         throw AppError.message("Spatial selection needs a visible coordinate annotation and leader.")
     }
     model.mutate(final: true) { $0.listenerX = 0.4; $0.listenerZ = -0.6; $0.speakerWidth = 1.8 }
+    // Selection is asserted through stable identifiers and localized values, so
+    // the check never depends on a Korean (or any) display title.
+    let selectionByIdentifier: [String: SpatialSceneState.Selection] = [
+        "spatial.control.listener": .listener,
+        "spatial.control.leftSpeaker": .leftSpeaker,
+        "spatial.control.rightSpeaker": .rightSpeaker
+    ]
+    let selectedState = L10n.string("spatial.state.selected")
+    let unselectedState = L10n.string("spatial.state.unselected")
     for mode in SpatialSceneState.ViewMode.allCases {
         model.sceneState.viewMode = mode
         for selected in [SpatialSceneState.Selection.listener, .leftSpeaker, .rightSpeaker] {
             model.sceneState.selection = selected
             view.renderState()
-            let selectedTitle = selected == .listener ? "청취자" : selected == .leftSpeaker ? "L" : "R"
+            let selectedTitle = selected == .listener ? L10n.string("spatial.selection.listener")
+                : selected == .leftSpeaker ? L10n.string("spatial.selection.left")
+                : L10n.string("spatial.selection.right")
             let buttons = view.subviews.compactMap { $0 as? NSButton }
+            try require(buttons.count == selectionByIdentifier.count,
+                        "Stage selection must expose exactly the three native accessibility buttons.")
             for button in buttons {
-                let expected = button.title == selectedTitle
-                try require(button.state == (expected ? .on : .off) && button.isAccessibilitySelected() == expected,
-                            "Native and AX selected state disagree for \(button.title).")
-                let value = button.accessibilityValue() as? String ?? ""
-                try require(value.contains(expected ? "선택됨" : "선택 안 됨"),
-                            "Coordinate/width update erased accessible selection for \(button.title).")
-                if button.title != "청취자" {
-                    try require(value.contains("1.80"), "Speaker width is absent from its AX value.")
+                guard let identifier = button.identifier?.rawValue,
+                      let buttonSelection = selectionByIdentifier[identifier] else {
+                    throw AppError.message("Stage selection button lost its stable identifier.")
                 }
+                let expected = buttonSelection == selected
+                try require(button.state == (expected ? .on : .off) && button.isAccessibilitySelected() == expected,
+                            "Native and AX selected state disagree for \(identifier).")
+                let value = button.accessibilityValue() as? String ?? ""
+                let expectedValue: String
+                switch buttonSelection {
+                case .listener:
+                    expectedValue = L10n.format("spatial.stage.listenerValue", Float(0.4), Float(-0.6),
+                                                expected ? selectedState : unselectedState)
+                case .leftSpeaker, .rightSpeaker:
+                    let width = L10n.format("spatial.stage.widthValue", Float(1.8))
+                    expectedValue = L10n.format("spatial.stage.speakerValue", width,
+                                                expected ? selectedState : unselectedState)
+                case .none:
+                    expectedValue = ""
+                }
+                try require(value == expectedValue,
+                            "AX value for \(identifier) lost its selection or width after a coordinate update.")
             }
             let expectedX: Float = selected == .listener ? 0.4 : selected == .leftSpeaker ? -0.9 : 0.9
             let expectedZ: Float = selected == .listener ? -0.6 : 1.8
-            let expectedText = String(format: "%@ · X %+.2f m · Z %+.2f m", selectedTitle, expectedX, expectedZ)
+            let expectedText = L10n.format("spatial.stage.coordinates", selectedTitle, expectedX, expectedZ)
             try require(!coordinates.isHidden && coordinates.stringValue == expectedText,
                         "Visible selection coordinates differ from DSP planar geometry.")
             try require(view.bounds.contains(coordinates.frame), "Selection coordinates are clipped.")
@@ -240,11 +266,15 @@ func runSpatialUIChecks(snapshotDirectory: URL? = nil) throws {
         model.sceneState.selection = .listener
         view.renderState()
         _ = view.snapshot()
+        // Identify role labels by their stable identifiers; the visible text is localized.
+        let roleIdentifiers = ["spatial.stage.frontLabel", "spatial.stage.widthLabel"]
         let labels = view.subviews.filter {
             if $0 is NSButton { return true }
             guard let label = $0 as? NSTextField else { return false }
-            return label.stringValue == "앞 +Z" || label.stringValue.hasPrefix("폭 ")
+            return roleIdentifiers.contains(label.identifier?.rawValue ?? "")
         }
+        try require(labels.count == selectionByIdentifier.count + roleIdentifiers.count,
+                    "Minimum-page role labels lost their stable identifiers.")
         for (index, label) in labels.enumerated() {
             try require(view.bounds.contains(label.frame), "Minimum-page role label clipped.")
             if let annotation = label as? NSTextField {

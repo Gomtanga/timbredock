@@ -1,0 +1,90 @@
+/* Spatial page strings (English, default). Keys must match ko.lproj/Spatial.strings. */
+
+"spatial.page.title" = "Spatial Audio";
+"spatial.page.subtitle" = "Adjust the listening position and the width between the two virtual speakers.";
+
+"spatial.view.label" = "View";
+"spatial.view.planar" = "Planar";
+"spatial.view.perspective" = "3D";
+
+"spatial.enabledOn" = "Spatial audio ON";
+"spatial.enabledOff" = "Spatial audio OFF";
+
+"spatial.resetListener" = "Reset listener";
+"spatial.resetAll" = "Reset all spatial settings";
+"spatial.fitCamera" = "Fit the whole stage in view";
+"spatial.grid" = "Grid";
+"spatial.paths" = "Paths";
+
+"spatial.stageHint.planar" = "Floor click: move the listener · Drag a speaker: change width · Arrow keys: 0.01 m · Shift: 0.10 m";
+"spatial.stageHint.perspective" = "Option-drag: orbit · Middle button: pan · Scroll: zoom · Floor drag: reposition";
+
+"spatial.inspector.target" = "Adjustment target";
+"spatial.selection.none" = "All";
+"spatial.selection.listener" = "Listener";
+"spatial.selection.left" = "L";
+"spatial.selection.right" = "R";
+"spatial.selection.accessibilityLabel" = "Choose the spatial adjustment target";
+
+"spatial.value.listenerX" = "Left/right position X";
+"spatial.value.listenerZ" = "Front/back position Z";
+"spatial.value.speakerWidth" = "Virtual speaker width";
+"spatial.value.amount" = "Spatial amount";
+
+"spatial.unit.meters" = "m";
+
+"spatial.inspector.axisHint" = "+X points right and +Z points toward the speakers.";
+"spatial.inspector.widthHint" = "Both speakers are placed symmetrically about the center. Their forward position Z stays fixed at 1.80 m.";
+"spatial.inspector.noneHint" = "Select the listener or an L/R speaker to enter exact coordinates and width.";
+
+"spatial.amountHint.off" = "OFF · Outputs the original signal. The layout is retained.";
+"spatial.amountHint.zero" = "0% · Outputs only the original signal.";
+"spatial.amountHint.on" = "ON · Mixes the original signal with distance, relative delay and crossfeed processing.";
+
+"spatial.validation.finite" = "Enter a finite number. The previous value was kept.";
+
+"spatial.control.range" = "%@, %@, %@ to %@";
+"spatial.control.decrease" = "Decrease %@ by one step";
+"spatial.control.increase" = "Increase %@ by one step";
+"spatial.control.slider" = "%@ slider, %@";
+"spatial.control.invalid" = "Enter a valid number.";
+
+"spatial.details.title" = "Paths and DSP targets";
+"spatial.details.pending" = "Waiting to send the target";
+"spatial.details.preview" = "Target preview";
+"spatial.details.submitted" = "Target delivery requested";
+"spatial.details.noDeviceStatus" = "Device acknowledgement has not been confirmed yet.";
+"spatial.details.rateRelativeDelay" = "Processing rate %.1f kHz · relative delay from the shortest path";
+"spatial.details.crossfeed" = "Crossfeed %.3f · Dashed paths are the opposite-ear paths, not reflections.";
+"spatial.details.gainNote" = "gain is the wet path coefficient. It is distinct from the actual waveform while targets are being received or interpolated; the final mix also adds output trim and saturation.";
+"spatial.details.waitingRate" = "Waiting for the processing rate before computing the paths.";
+
+"spatial.path.ll" = "LL direct";
+"spatial.path.lr" = "LR cross";
+"spatial.path.rl" = "RL cross";
+"spatial.path.rr" = "RR direct";
+"spatial.pathRow.metrics" = "distance %.3f m · gain %.3f · %.3f ms (%u samples)";
+"spatial.pathRow.distanceFloor" = "DSP distance floor applied: %.3f m";
+"spatial.pathRow.delayLimited" = "The delay buffer limit restricts part of the delay.";
+
+"spatial.state.on" = "ON";
+"spatial.state.off" = "OFF";
+"spatial.state.selected" = "Selected";
+"spatial.state.unselected" = "Not selected";
+
+"spatial.stage.accessibilityLabel" = "Spatial stage. Use the listener, left speaker and right speaker buttons and the inspector to edit.";
+"spatial.stage.selectListener" = "Select the listener";
+"spatial.stage.selectLeft" = "Select the left speaker";
+"spatial.stage.selectRight" = "Select the right speaker";
+"spatial.stage.front" = "Front +Z";
+"spatial.stage.widthLabel" = "Width %.2f m";
+"spatial.stage.widthValue" = "Virtual speaker width %.2f meters";
+"spatial.stage.listenerTooltip" = "Listener X %.2f m, Z %.2f m. Use the arrow keys on the stage to move it.";
+"spatial.stage.listenerValue" = "X %.2f meters, Z %.2f meters, %@";
+"spatial.stage.speakerValue" = "%@, %@";
+"spatial.stage.leftTooltip" = "Left speaker · width";
+"spatial.stage.rightTooltip" = "Right speaker · width";
+"spatial.stage.stateLabel" = "%@ · Grid 0.5 m · Right +X · Front +Z";
+"spatial.stage.coordinates" = "%@ · X %+.2f m · Z %+.2f m";
+"spatial.stage.coordinatesLabel" = "DSP planar coordinates of the selected %@";
+"spatial.stage.coordinatesTooltip" = "DSP planar coordinates of the selected object. The gray guide lines are not audio paths.";

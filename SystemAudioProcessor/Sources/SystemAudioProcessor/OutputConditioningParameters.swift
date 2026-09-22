@@ -30,10 +30,14 @@ enum OutputConditioningMode: UInt32, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .bypass: return "Bypass"
-        case .pcmOversampling: return "PCM Oversampling"
-        case .pcmWithDither: return "PCM + Dither (Live 미구현)"
-        case .experimentalDSD: return "DSD / DoP (오프라인 전용)"
+        // Product labels only (v0.4.0). The raw storage values and their
+        // meaning are unchanged: the live path still recognises only `bypass`
+        // and `pcmOversampling` (2x), and the remaining cases stay reachable
+        // for offline harnesses and legacy-preference migration.
+        case .bypass: return "Standard"
+        case .pcmOversampling: return "2x Upsampling"
+        case .pcmWithDither: return "PCM + Dither (not available)"
+        case .experimentalDSD: return "DSD / DoP (not available)"
         }
     }
 }
@@ -79,9 +83,9 @@ enum ResamplingFilterMode: UInt32, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .linearPhaseShort: return "Linear Phase Short"
-        case .linearPhaseLong: return "Linear Phase Long"
-        case .minimumPhaseExperimental: return "Minimum Phase 미구현 → Short"
+        case .linearPhaseShort: return "Short"
+        case .linearPhaseLong: return "Long"
+        case .minimumPhaseExperimental: return "Minimum Phase (uses Short)"
         }
     }
 

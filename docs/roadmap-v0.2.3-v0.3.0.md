@@ -1,5 +1,8 @@
 # v0.2.3 to v0.3.0 Roadmap
 
+> Historical design: this document records an earlier migration plan. Current v0.4.0 work is tracked in [the redesign plan](redesign-v0.4.0.md). The released app is macOS; Windows exploration continues separately on its existing branches.
+
+
 ## v0.2.3 Stabilization
 
 - Keep the macOS Native Swift DSP as the default sound path.

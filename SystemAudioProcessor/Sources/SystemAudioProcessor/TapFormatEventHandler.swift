@@ -15,7 +15,7 @@ enum TapFormatEventHandler {
     enum FailurePhase: Equatable { case read, reconfigure }
     struct InvalidSampleRate: Error, CustomStringConvertible {
         let rate: Double
-        var description: String { "지원 처리율은 8–768 kHz입니다 (관측: \(rate) Hz)." }
+        var description: String { L10n.format("runtime.format.range", rate) }
     }
     struct Operations {
         var isCurrentRegistration: () -> Bool

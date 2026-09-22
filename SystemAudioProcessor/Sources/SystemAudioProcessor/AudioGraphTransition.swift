@@ -6,9 +6,9 @@ struct AudioGraphTransitionFailure: Error, CustomStringConvertible {
     var recovered: Bool { recoveryFailure == nil }
     var description: String {
         if let recoveryFailure {
-            return "전환 실패: \(cause). 복구 실패로 출력 정지: \(recoveryFailure)"
+            return L10n.format("runtime.transition.recoveryFailed", String(describing: cause), String(describing: recoveryFailure))
         }
-        return "전환 실패 후 PCM 복구 완료: \(cause)"
+        return L10n.format("runtime.transition.recovered", String(describing: cause))
     }
 }
 

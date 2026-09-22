@@ -1,4 +1,4 @@
-# Contributing to LowEnd Circuit
+# Contributing to TimbreDock
 
 [한국어 README](README.md) · [English README](README.en.md)
 

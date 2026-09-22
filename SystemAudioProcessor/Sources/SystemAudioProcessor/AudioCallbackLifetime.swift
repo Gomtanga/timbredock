@@ -34,7 +34,7 @@ final class AudioCallbackLifetime: @unchecked Sendable {
         let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(max(timeout, 0) * 1_000_000_000)
         while lc_callback_gate_in_flight(handle) != 0 {
             if DispatchTime.now().uptimeNanoseconds >= deadline {
-                throw AppError.message("오디오 callback 종료 확인 시간 초과; 리소스를 보존합니다.")
+                throw AppError.message(L10n.string("runtime.callback.timeout"))
             }
             Thread.sleep(forTimeInterval: 0.001)
         }
@@ -69,7 +69,7 @@ final class AudioCallbackLifetime: @unchecked Sendable {
 struct AudioTeardownFailure: Error, CustomStringConvertible {
     let operation: String
     let status: Int32
-    var description: String { "\(operation) 실패 (OSStatus \(status)); 리소스를 보존합니다." }
+    var description: String { L10n.format("runtime.callback.failure", operation, status) }
 }
 
 /// Production Core Audio calls and failure-injection checks use this adapter.
@@ -110,7 +110,7 @@ enum AudioLifecyclePolicy {
 
     static func validateUnityRoute(captureRate: Double, outputRate: Double) throws {
         guard captureRate.isFinite, outputRate.isFinite, abs(captureRate - outputRate) < 1 else {
-            throw AppError.message("캡처와 출력 샘플레이트가 일치하지 않습니다.")
+            throw AppError.message(L10n.string("runtime.format.mismatch"))
         }
     }
 
@@ -121,7 +121,7 @@ enum AudioLifecyclePolicy {
     static func restoreRate(_ requested: Double, apply: () throws -> Double, didRestore: () -> Void) throws {
         let confirmed = try apply()
         guard confirmed.isFinite, abs(confirmed - requested) < 1 else {
-            throw AppError.message("원래 샘플레이트 복구가 확인되지 않았습니다.")
+            throw AppError.message(L10n.string("runtime.format.restoreUnconfirmed"))
         }
         didRestore()
     }

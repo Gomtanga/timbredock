@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
-  <title id="title">LowEnd Circuit</title>
+  <title id="title">TimbreDock</title>
   <desc id="desc">Bass. Harmonics. Space. An open-source macOS audio project, with a stereo stage illustration.</desc>
   <rect x="1" y="1" width="1198" height="318" rx="24" fill="#10151f" stroke="#293442"/>
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
     <rect x="52" y="51" width="32" height="4" rx="2" fill="#f7c96a"/>
     <text x="99" y="59" fill="#a9b8c9" font-size="12" font-weight="600" letter-spacing="2.1">OPEN-SOURCE AUDIO · macOS</text>
-    <text x="48" y="145" fill="#f1f5f9" font-size="66" font-weight="750" letter-spacing="-2.8">LowEnd Circuit</text>
+    <text x="48" y="145" fill="#f1f5f9" font-size="66" font-weight="750" letter-spacing="-2.8">TimbreDock</text>
     <text x="52" y="192" fill="#a9b8c9" font-size="26" letter-spacing="0.2">Bass. Harmonics. Space.</text>
     <g fill="none" stroke="#293442">
       <rect x="52" y="238" width="100" height="30" rx="15"/>
@@ -13,7 +13,7 @@
       <rect x="320" y="238" width="156" height="30" rx="15"/>
     </g>
     <g fill="#a9b8c9" font-size="11" font-weight="600" letter-spacing="1.1" text-anchor="middle">
-      <text x="102" y="258">CIRCUIT</text><text x="236" y="258">HIGHEXCITER</text><text x="398" y="258">SPATIAL STAGE</text>
+      <text x="102" y="258">BASS BOOST</text><text x="236" y="258">HARMONICS</text><text x="398" y="258">SPATIAL STAGE</text>
     </g>
     <g transform="translate(725 33)">
       <rect width="421" height="254" rx="18" fill="#151e2a"/>

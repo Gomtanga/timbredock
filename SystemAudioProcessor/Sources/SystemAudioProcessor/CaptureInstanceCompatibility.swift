@@ -40,7 +40,7 @@ enum CaptureInstanceCompatibility {
                 }
                 return "\(displayName) (PID \(instance.processIdentifier))"
             }.joined(separator: "\n")
-            return "중복 캡처 방지를 지원하는지 확인할 수 없는 LowEnd Circuit 앱이 실행 중입니다. 아래 앱을 종료한 뒤 다시 적용하세요.\n\(apps)"
+            return L10n.format("runtime.capture.incompatible", apps)
         }
 
         var errorDescription: String? { description }

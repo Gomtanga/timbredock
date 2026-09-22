@@ -1,0 +1,4 @@
+/* TimbreDock 앱 번들용 한국어 권한 설명입니다. */
+"CFBundleDisplayName" = "TimbreDock";
+"NSAudioCaptureUsageDescription" = "TimbreDock은 시스템 또는 선택한 앱의 오디오를 캡처하여 오디오 효과를 적용하고, 처리된 신호를 스피커나 헤드폰으로 재생합니다.";
+"NSAppleEventsUsageDescription" = "TimbreDock은 재생 상태와 소스 포맷을 확인하기 위해 Music에 Apple 이벤트를 보냅니다.";

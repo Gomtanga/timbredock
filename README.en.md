@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero-light.svg">
-  <img src="docs/assets/hero-dark.svg" width="1200" alt="LowEnd Circuit — Bass. Harmonics. Space.">
+  <img src="docs/assets/hero-dark.svg" width="1200" alt="TimbreDock — Bass. Harmonics. Space.">
 </picture>
 
 <p align="center">
@@ -22,6 +22,8 @@
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-486b87)](LICENSE)
 
 [한국어](README.md) · **English**
+
+> **TimbreDock v0.4.0 is in development** — the new name for LowEnd Circuit. This branch updates the UI, English/Korean localization and signal analysis. Downloads and existing screenshots below describe stable v0.3.0. [Redesign and acceptance criteria](docs/redesign-v0.4.0.md) · [v0.4.0 guide](docs/timbredock-v0.4.0-guide.en.md) · [Build the new source](docs/development.en.md)
 
 ## Shape your sound and your listening space
 

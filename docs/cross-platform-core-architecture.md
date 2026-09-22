@@ -1,5 +1,8 @@
 # LowEnd Core — Shared DSP Architecture
 
+> Historical design: this document records an earlier migration plan. Current v0.4.0 work is tracked in [the redesign plan](redesign-v0.4.0.md). The released app is macOS; Windows exploration continues separately on its existing branches.
+
+
 > 상태: **현재 소스 구조 정정 (2026-09-07)**.
 > 원래는 2026-06-08의 "Cross-Platform Core Architecture" 제안이었습니다.
 > C++ portable Core와 C 브리지는 존재하지만 Native live DSP는 Swift 경로이며, JUCE Plugin(Phase 3)과

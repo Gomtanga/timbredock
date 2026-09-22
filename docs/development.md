@@ -2,9 +2,11 @@
 
 [← 홈](../README.md) · [English](development.en.md)
 
+이 문서는 v0.4.0 개발 소스를 기준으로 합니다. [v0.3.0 배포 파일](https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0)은 기존 앱과 파일 이름을 유지합니다.
+
 ## 소스에서 빌드
 
-### LowEnd Native Audio
+### TimbreDock
 
 macOS 14.4 이상과 최신 Xcode 명령줄 도구 또는 Swift 도구 체인이 필요합니다.
 
@@ -12,7 +14,7 @@ macOS 14.4 이상과 최신 Xcode 명령줄 도구 또는 Swift 도구 체인이
 git clone https://github.com/Gomtanga/lowend-circuit.git
 cd lowend-circuit
 ./scripts/build-native-system-audio-app.sh
-open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/LowEnd Native Audio.app"
+open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/TimbreDock.app"
 ```
 
 명령줄에서 전체 시스템 또는 특정 앱 모드를 시험할 때는 다음 도구를 사용할 수 있습니다.
@@ -25,7 +27,7 @@ open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/LowEnd Native Audi
 
 ## 검증
 
-이 저장소의 CI는 휴대용 C++ Core, Swift 지원 검사, Swift·C++ DSP 비교, LowEnd Native Audio 빌드를 나누어 검사합니다. 로컬에서는 필요한 범위에 맞춰 다음 명령을 사용할 수 있습니다.
+이 저장소의 CI는 휴대용 C++ Core, Swift 지원 검사, Swift·C++ DSP 비교, TimbreDock 빌드를 나누어 검사합니다. 로컬에서는 필요한 범위에 맞춰 다음 명령을 사용할 수 있습니다.
 
 ```sh
 cmake -S Source/Core -B build/core-tests -DCMAKE_BUILD_TYPE=Release -DLOWEND_CORE_BUILD_TESTING=ON
@@ -46,7 +48,7 @@ swift run --package-path SystemAudioProcessor -c release SystemAudioProcessor --
 
 ```sh
 LOWEND_BUILD_DIR=/tmp/lowend-build-qa \
-LOWEND_APP_DIR="/tmp/lowend-app-qa/LowEnd Native Audio.app" \
+LOWEND_APP_DIR="/tmp/lowend-app-qa/TimbreDock.app" \
 ./scripts/build-native-system-audio-app.sh
 ```
 
@@ -60,9 +62,9 @@ LOWEND_APP_DIR="/tmp/lowend-app-qa/LowEnd Native Audio.app" \
 
 Native live callback은 `TonalDSP.swift`의 Swift Circuit/HighExciter와 `SpatialDSP.swift`를 실행합니다. C++ `Source/Core`는 portable DSP 및 parity 비교 경로이며, 공간 geometry는 C++ 순수 계산을 C ABI로 공유합니다. 두 언어의 출력 일치는 동일한 오류를 배제하지 않으므로 독립 impulse·주파수 응답·DC·전환 fixture도 검사합니다.
 
-Output Conditioning의 live 범위는 PCM 2×입니다. 4×/8×, dither/noise shaping, DSD/DoP는 live 출력에 연결되어 있지 않습니다. offline DoP packer는 채널별 16 DSD bits와 8-bit marker를 32-bit little-endian container `[payloadLow, payloadHigh, marker, 0]`에 담으며, block 사이의 marker phase와 잔여 bits를 보존합니다. 이 형식 검사는 완성된 DSD64/128/256 transport 또는 DAC 호환성 검증을 뜻하지 않습니다.
+Output 화면은 Standard, 2× Upsampling, Match Source Sample Rate를 제공합니다. 실제 출력 변환 범위는 PCM 2×입니다. 4×/8×, dither/noise shaping, DSD/DoP는 live 출력에 연결되어 있지 않습니다. offline DoP packer는 채널별 16 DSD bits와 8-bit marker를 32-bit little-endian container `[payloadLow, payloadHigh, marker, 0]`에 담으며, block 사이의 marker phase와 잔여 bits를 보존합니다. 이 형식 검사는 완성된 DSD64/128/256 transport 또는 DAC 호환성 검증을 뜻하지 않습니다.
 
-v0.3.0에는 Spatial Stage 개편과 오디오 처리 안정화가 포함됩니다. 확인된 기능과 검증 범위는 해당 릴리스 노트를 기준으로 확인하세요.
+현재 구현·완료 조건은 [v0.4.0 개편 기록](redesign-v0.4.0.md)에서 확인하세요. v0.3.0의 날짜가 붙은 검증 기록은 새 빌드의 실제 장치 검증을 대신하지 않습니다.
 
 ## 저장소 구조
 

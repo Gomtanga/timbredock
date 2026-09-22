@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SystemAudioProcessor",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "SystemAudioProcessor", targets: ["SystemAudioProcessor"]),
@@ -24,7 +25,12 @@ let package = Package(
         .executableTarget(
             name: "SystemAudioProcessor",
             dependencies: ["AudioRingBufferC", "LowEndDSPCoreC", "LowEndSupport"],
-            resources: [.copy("../../Shaders/SpectrumShaders.metal")],
+            resources: [
+                .copy("../../Shaders/SpectrumShaders.metal"),
+                // Localized app strings (en/ko) are processed into
+                // Resources/{en,ko}.lproj inside this target's resource bundle.
+                .process("Resources")
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),

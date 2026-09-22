@@ -156,7 +156,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
     private var isAutomaticRateTransition = false
     private var originalRateMatchDeviceID = AudioObjectID(kAudioObjectUnknown)
     private var originalRateMatchSampleRate: Double?
-    private var rateMatchStatus = "자동 꺼짐"
+    private var rateMatchStatus = L10n.string("runtime.rate.off")
     private var rateMatchPhase: RateMatchPhase = .idle
     private var rateMatchTransitionID: UInt64 = 0
     private var rateMatchActiveTransitionID: UInt64 = 0
@@ -166,9 +166,10 @@ final class SystemAudioProcessor: @unchecked Sendable {
     private var ringWrittenAtCaptureStart: UInt64 = 0
     private var ringReadAtCaptureStart: UInt64 = 0
     private var currentSpatialSettings: SpatialSettings
-    private var currentCaptureTargetSummary = "전체 시스템"
+    private var currentCaptureTargetSummary = L10n.string("runtime.target.system")
     private var engineRestartCount: UInt64 = 0
-    private var isStarted = false
+    private let runningState = RuntimeSnapshotBox(false)
+    private var isStarted = false { didSet { runningState.store(isStarted) } }
     private let displayState = RuntimeSnapshotBox(ManagerDisplayState())
     private let stopFailureState = RuntimeSnapshotBox<String?>(nil)
     private let spatialSubmissions: SpatialSubmissionBox
@@ -183,7 +184,11 @@ final class SystemAudioProcessor: @unchecked Sendable {
         return nil
     }
     var appliedSpatialRevision: UInt64 { controlQueue.appliedSpatialRevision }
-    var stopFailureDescription: String { stopFailureState.load() ?? "오디오 정리가 완료되지 않았습니다." }
+    var receivedTone: ToneControlReceipt? {
+        guard runningState.load() else { return nil }
+        return controlQueue.receivedTone
+    }
+    var stopFailureDescription: String { stopFailureState.load() ?? L10n.string("runtime.stop.incomplete") }
 
     func diagnosticsSnapshot() -> AudioDiagnosticsSnapshot {
         let state = displayState.load()
@@ -243,7 +248,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         guard isStarted, tapID != kAudioObjectUnknown, case .bundleIDs = settings.mode else { return }
         let next: String
         do { next = try captureTargetRead(tapID) }
-        catch { next = "캡처 대상 조회 실패: \(error)" }
+        catch { next = L10n.format("runtime.capture.queryFailed", String(describing: error)) }
         guard next != currentCaptureTargetSummary else { return }
         currentCaptureTargetSummary = next
         publishManagerDisplayState()
@@ -278,8 +283,8 @@ final class SystemAudioProcessor: @unchecked Sendable {
         self.currentExciterOversamplingMode = settings.exciterOversamplingMode
         self.rateControlMode = settings.automaticRateMatchingEnabled ? .automatic : .manual
         self.rateMatchStatus = settings.automaticRateMatchingEnabled
-            ? "자동 켜짐: 소스 안정화 대기"
-            : "자동 꺼짐"
+            ? L10n.string("runtime.rate.waiting")
+            : L10n.string("runtime.rate.off")
         self.currentSpatialSettings = settings.spatial
         self.spatialSubmissions = SpatialSubmissionBox(settings.spatial)
         self.ringBuffer = try LockFreeFloatRingBuffer(capacityFrames: Int(max(sampleRate, 48_000)) * 4, channels: 2)
@@ -331,7 +336,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         try onManagerQueue {
             guard !isStarted else { return }
             guard captureSessionLease?.isHeld != true else {
-                throw AppError.message("이전 오디오 처리의 정리가 남아 있습니다. 먼저 중지를 다시 시도해 주세요.")
+                throw AppError.message(L10n.string("runtime.stop.retry"))
             }
             if graphIO == nil { try CaptureInstanceCompatibility.validate() }
             // Reject contention before creating a tap or changing any device.
@@ -355,7 +360,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 let startFailure = error
                 if let failure = startFailure as? AudioGraphTransitionFailure, !failure.recovered {
                     isStarted = false
-                    rateMatchStatus = "시작 실패 후 정리 보류: \(failure)"
+                    rateMatchStatus = L10n.format("runtime.start.cleanupPending", String(describing: failure))
                     publishFormatStatus()
                     throw failure
                 }
@@ -365,7 +370,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 }
                 catch {
                     isStarted = false
-                    rateMatchStatus = "시작 실패 후 정리 보류: \(error)"
+                    rateMatchStatus = L10n.format("runtime.start.cleanupPending", String(describing: error))
                     publishFormatStatus()
                     throw AudioGraphTransitionFailure(cause: startFailure, recoveryFailure: error)
                 }
@@ -491,7 +496,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             rateMatchCoordinator.invalidateSource()
             do { try restoreOriginalRateMatchIfNeeded() }
             catch {
-                publishLivePCM2xStatus(active: false, fallbackReason: "기존 자동 맞춤 복구 실패: \(error)")
+                publishLivePCM2xStatus(active: false, fallbackReason: L10n.format("runtime.rate.previousRestoreFailed", String(describing: error)))
                 publishFormatStatus()
                 return
             }
@@ -504,7 +509,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             fputs("[Live2x] fallback (unsupported): tap=\(Self.rateText(tapRate)) device=\(currentOutputDeviceID)\n", stderr)
             controlQueue.pushConditioning(bypassConditioning(from: parameters))
             publishLivePCM2xStatus(active: false,
-                                   fallbackReason: "이 장치/샘플레이트에서는 2× 출력을 지원하지 않아 PCM으로 출력됩니다.")
+                                   fallbackReason: L10n.string("runtime.output.unsupported"))
             return
         }
         do {
@@ -537,7 +542,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             // The normal-graph installer applies bypass only after both callbacks stop.
             // Rebuild even if the nominal rate already matches: the tap/output split may not.
             try performRateTransition(to: restoreRate,
-                successStatus: "2× 해제: \(Self.rateText(restoreRate))", transitionID: rateMatchTransitionID)
+                successStatus: L10n.format("runtime.output.disabled", Self.rateText(restoreRate)), transitionID: rateMatchTransitionID)
             preLivePCM2xHardwareRate = nil
             preLivePCM2xDeviceID = kAudioObjectUnknown
         } catch {
@@ -559,7 +564,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
     /// while the output runs at 2×. On any failure it restores the pre-2× rate.
     private func performLivePCM2xTransition(tapRate: Double, outputRate: Double,
                                             parameters: OutputConditioningParameters) throws {
-        guard !isAutomaticRateTransition else { throw AppError.message("오디오 전환이 이미 진행 중입니다.") }
+        guard !isAutomaticRateTransition else { throw AppError.message(L10n.string("runtime.transition.busy")) }
         isAutomaticRateTransition = true
         defer { isAutomaticRateTransition = false; publishFormatStatus() }
         if preLivePCM2xHardwareRate == nil {
@@ -588,7 +593,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         _ = try syncAggregateSampleRate(preferredSampleRate: tapRate)
         try refreshTapSampleRate()
         guard abs(currentTapSampleRate - tapRate) < 1, abs(outputRate - currentTapSampleRate * 2) < 1 else {
-            throw AppError.message("장치가 요청한 tap 1× / output 2× 형식을 유지하지 못했습니다.")
+            throw AppError.message(L10n.string("runtime.output.formatLost"))
         }
         // Output device/graph at 2×.
         currentHardwareSampleRate = outputRate
@@ -655,7 +660,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             guard let self else { return }
             AudioLifecyclePolicy.withRunningProcessor(isStarted: isStarted) {
                 if enabled && livePCM2xActive {
-                    rateMatchStatus = "2× 출력 중에는 자동 샘플레이트 맞춤을 사용할 수 없습니다."
+                    rateMatchStatus = L10n.string("runtime.rate.conflict")
                     publishFormatStatus()
                     return
                 }
@@ -663,12 +668,12 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 rateMatchSessionDisabled = false
                 rateMatchCoordinator.reset()
                 rateMatchPhase = enabled ? .idle : .idle
-                rateMatchStatus = enabled ? "자동 켜짐: 소스 안정화 대기" : "자동 꺼짐"
+                rateMatchStatus = enabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
                 if !enabled {
                     do {
                         try restoreOriginalRateMatchIfNeeded()
                     } catch {
-                        rateMatchStatus = "자동 꺼짐: 원래 샘플레이트 복구 실패"
+                        rateMatchStatus = L10n.string("runtime.rate.restoreFailed")
                     }
                 }
                 publishFormatStatus()
@@ -706,7 +711,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                     performTransition: { try self.performAutomaticRateTransition(to: $0) }
                 )
                 if case .coolingDown(let remaining) = outcome {
-                    rateMatchStatus = "자동 대기: \(String(format: "%.1f", remaining))s"
+                    rateMatchStatus = L10n.format("runtime.rate.cooldown", remaining)
                     publishFormatStatus()
                 }
             } catch {
@@ -748,7 +753,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 isStarted = false
                 isAutomaticRateTransition = false
                 rateMatchPhase = .aborted
-                rateMatchStatus = "오디오 정리 보류: \(error)"
+                rateMatchStatus = L10n.format("runtime.stop.pending", String(describing: error))
                 stopFailureState.store(rateMatchStatus)
                 rateMatchLog(rateMatchStatus)
                 publishFormatStatus()
@@ -761,7 +766,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             if originalRateMatchSampleRate != nil {
                 do { try restoreOriginalRateMatchIfNeeded(reconfigureEngine: false) }
                 catch {
-                    stopFailureState.store("원래 자동 샘플레이트 복구 보류: \(error)")
+                    stopFailureState.store(L10n.format("runtime.rate.originalPending", String(describing: error)))
                     rateMatchLog("Stop automatic-rate restoration pending: \(error)")
                 }
             }
@@ -776,7 +781,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                             preLivePCM2xDeviceID = kAudioObjectUnknown
                         })
                 } catch {
-                    stopFailureState.store("2× 이전 샘플레이트 복구 보류: \(error)")
+                    stopFailureState.store(L10n.format("runtime.output.originalPending", String(describing: error)))
                     rateMatchLog("Stop restoration pending: \(error)")
                 }
             }
@@ -789,7 +794,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             rateMatchCoordinator.reset()
             publishManagerDisplayState()
             if (originalRateMatchSampleRate != nil || preLivePCM2xHardwareRate != nil) && stopFailureState.load() == nil {
-                stopFailureState.store("이전 출력 장치의 샘플레이트 복구가 남아 있습니다.")
+                stopFailureState.store(L10n.string("runtime.rate.previousPending"))
             }
             let fullyStopped = originalRateMatchSampleRate == nil && preLivePCM2xHardwareRate == nil
             if fullyStopped { captureSessionLease?.release() }
@@ -923,7 +928,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         do {
             try performRateTransition(
                 to: targetRate,
-                successStatus: "자동 맞춤 완료: \(Self.rateText(targetRate))",
+                successStatus: L10n.format("runtime.rate.active", Self.rateText(targetRate)),
                 transitionID: transitionID
             )
         } catch {
@@ -943,7 +948,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                     rateMatchActiveTransitionID = rollbackID
                     try performRateTransition(
                         to: originalRate,
-                        successStatus: "자동 되돌리기: \(Self.rateText(originalRate))",
+                        successStatus: L10n.format("runtime.rate.rollback", Self.rateText(originalRate)),
                         transitionID: rollbackID
                     )
                     rollbackSucceeded = true
@@ -977,7 +982,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             }
             try performRateTransition(
                 to: originalRate,
-                successStatus: "자동 꺼짐: \(Self.rateText(originalRate)) 복구",
+                successStatus: L10n.format("runtime.rate.offRestored", Self.rateText(originalRate)),
                 transitionID: restoreID
             )
         } else {
@@ -991,10 +996,10 @@ final class SystemAudioProcessor: @unchecked Sendable {
     private func performRateTransition(to targetRate: Double,
                                        successStatus: String,
                                        transitionID: UInt64) throws {
-        guard !isAutomaticRateTransition else { throw AppError.message("오디오 전환이 이미 진행 중입니다.") }
+        guard !isAutomaticRateTransition else { throw AppError.message(L10n.string("runtime.transition.busy")) }
         isAutomaticRateTransition = true
         let rollbackRate = currentHardwareSampleRate
-        rateMatchStatus = "전환 중: \(Self.rateText(targetRate))"
+        rateMatchStatus = L10n.format("runtime.rate.switching", Self.rateText(targetRate))
         defer { isAutomaticRateTransition = false; publishFormatStatus() }
         do {
             try runGraphTransition(
@@ -1024,7 +1029,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                         self.requestOutputGain(0, duration: 0.05)
                         // A stopped output has no callback to ramp, and is already silent.
                         if self.outputIsRunning && !self.waitForOutputGain(atMost: 0.001, timeout: 0.25) {
-                            throw AppError.message("출력 페이드아웃 시간 초과")
+                            throw AppError.message(L10n.string("runtime.transition.fadeOutTimeout"))
                         }
                     },
                     quiesce: { try self.suspendForHardwareReconfigure() },
@@ -1039,14 +1044,14 @@ final class SystemAudioProcessor: @unchecked Sendable {
                         self.ringWrittenAtTransitionStart = self.ringBuffer.totalWrittenSamples()
                         self.ringReadAtTransitionStart = self.ringBuffer.totalReadSamples()
                         guard self.waitForAudioFlowRecovery(timeout: 0.75) else {
-                            throw AppError.message("캡처/출력 흐름 복구 시간 초과")
+                            throw AppError.message(L10n.string("runtime.transition.flowTimeout"))
                         }
                     },
                     fadeIn: {
                         self.rateMatchPhase = .fadingIn
                         self.requestOutputGain(1, duration: 0.08)
                         guard self.waitForOutputGain(atLeast: 0.99, timeout: 0.5) else {
-                            throw AppError.message("출력 페이드인 시간 초과")
+                            throw AppError.message(L10n.string("runtime.transition.fadeInTimeout"))
                         }
                     }
                 ))
@@ -1166,7 +1171,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         rateMatchSessionDisabled = true
         rateMatchCoordinator.invalidateSource()
         rateMatchPhase = .aborted
-        rateMatchStatus = "자동 일시정지: \(error)"
+        rateMatchStatus = L10n.format("runtime.rate.paused", String(describing: error))
         requestOutputGain(1, duration: 0.08)
         publishFormatStatus()
     }
@@ -1182,7 +1187,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         do { newHardwareSampleRate = try Self.validSampleRate(sampleRate) }
         catch {
             if isStarted { reportSuspensionFailureIfNeeded() }
-            rateMatchStatus = "지원하지 않는 장치 형식: \(error)"
+            rateMatchStatus = L10n.format("runtime.format.unsupported", String(describing: error))
             publishFormatStatus()
             return
         }
@@ -1194,8 +1199,8 @@ final class SystemAudioProcessor: @unchecked Sendable {
             originalRateMatchDeviceID = AudioObjectID(kAudioObjectUnknown)
             rateMatchCoordinator.invalidateSource()
             rateMatchStatus = automaticRateMatchingEnabled
-                ? "자동 켜짐: 외부 장치 변경 감지"
-                : "자동 꺼짐"
+                ? L10n.string("runtime.rate.deviceChanged")
+                : L10n.string("runtime.rate.off")
             // An external device/rate change invalidates the live PCM 2× split
             // (tap 1× / output 2×). Drop back to PCM bypass and let the normal
             // reconfigure run the aggregate and output at the device's new rate.
@@ -1206,7 +1211,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 preLivePCM2xDeviceID = kAudioObjectUnknown
                 publishLivePCM2xStatus(
                     active: false,
-                    fallbackReason: "출력 장치가 변경되어 2× 모드가 해제되었습니다. PCM으로 출력됩니다."
+                    fallbackReason: L10n.string("runtime.output.deviceChanged")
                 )
             }
         }
@@ -1235,7 +1240,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             try reconfigureForHardwareFormat(deviceID: deviceID, hardwareSampleRate: newHardwareSampleRate)
         } catch {
             reportSuspensionFailureIfNeeded(after: error)
-            rateMatchStatus = "출력 형식 재설정 실패: \(error)"
+            rateMatchStatus = L10n.format("runtime.format.outputResetFailed", String(describing: error))
             publishFormatStatus()
             fputs("Output format reconfigure failed: \(error)\n", stderr)
         }
@@ -1281,7 +1286,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             lifetime.releaseOwnerAfterQuiescence(on: managerQueue)
         }
         stopOutputEngine()
-        guard !outputIsRunning else { throw AppError.message("출력 엔진 정지를 확인하지 못했습니다.") }
+        guard !outputIsRunning else { throw AppError.message(L10n.string("runtime.stop.engineUnconfirmed")) }
     }
 
     /// Notification handlers cannot throw to Core Audio. Keep the failed graph
@@ -1291,14 +1296,14 @@ final class SystemAudioProcessor: @unchecked Sendable {
         isStarted = false
         if let failure = error as? AudioGraphTransitionFailure, !failure.recovered {
             rateMatchPhase = .aborted
-            rateMatchLog("오디오 정리 보류: \(failure)")
+            rateMatchLog(L10n.format("runtime.stop.pending", String(describing: failure)))
             return
         }
         do { try suspendForHardwareReconfigure() }
         catch {
             isStarted = false
             rateMatchPhase = .aborted
-            rateMatchLog("오디오 정리 보류: \(error)")
+            rateMatchLog(L10n.format("runtime.stop.pending", String(describing: error)))
         }
     }
 
@@ -1404,6 +1409,10 @@ final class SystemAudioProcessor: @unchecked Sendable {
         spatializer.resetState()
     }
 
+    // Written by the manager only while callbacks are quiescent, then consumed
+    // by the first capture callback after a rebuild (including PCM 2x).
+    private var initialToneReceipt: UInt64 = 0
+
     private func applyCurrentSettingsDirectly() {
         // DSP/capture runs at the tap rate (the captured signal's rate). This is
         // distinct from the *output* rate (`currentSampleRate`) once live PCM 2×
@@ -1418,6 +1427,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             exciterOversamplingMode: currentExciterOversamplingMode
         )
         tonalDSP.update(dspSettings)
+        initialToneReceipt = LockFreeControlEventQueue.receiptWord(for: dspSettings)
         tonalDSP.resetState()
         let submission = spatialSubmissions.load()
         currentSpatialSettings = submission.settings
@@ -1469,7 +1479,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
 
     private static func validSampleRate(_ sampleRate: Double) throws -> Double {
         guard sampleRate.isFinite, (8_000...768_000).contains(sampleRate) else {
-            throw AppError.message("지원 처리율은 8–768 kHz입니다 (관측: \(sampleRate) Hz).")
+            throw AppError.message(L10n.format("runtime.format.range", sampleRate))
         }
         return sampleRate
     }
@@ -1494,7 +1504,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
     }
 
     private func refreshTapSampleRate() throws {
-        guard tapID != kAudioObjectUnknown else { throw AppError.message("캡처 tap이 없습니다.") }
+        guard tapID != kAudioObjectUnknown else { throw AppError.message(L10n.string("runtime.capture.noTap")) }
         currentTapSampleRate = try Self.validSampleRate(readTapSampleRate(tapID))
     }
 
@@ -1527,15 +1537,15 @@ final class SystemAudioProcessor: @unchecked Sendable {
                         throw error
                     }
                     guard self.isStarted, self.preLivePCM2xHardwareRate == nil else {
-                        throw AppError.message("캡처 형식 변경 후 2× 해제를 확인하지 못했습니다: \(self.rateMatchStatus)")
+                        throw AppError.message(L10n.format("runtime.output.disableUnconfirmed", self.rateMatchStatus))
                     }
                     self.publishLivePCM2xStatus(active: false,
-                        fallbackReason: "캡처 형식 변경으로 2× 출력을 해제했습니다.")
+                        fallbackReason: L10n.string("runtime.output.tapChanged"))
                 },
                 reportFailure: { error, phase in
                     if state.isStarted { self.reportSuspensionFailureIfNeeded(after: error) }
-                    let operation = phase == .read ? "확인" : "재설정"
-                    self.rateMatchStatus = "캡처 형식 \(operation) 실패: \(error)"
+                    let operation = phase == .read ? L10n.string("runtime.capture.read") : L10n.string("runtime.capture.reset")
+                    self.rateMatchStatus = L10n.format("runtime.capture.formatFailed", operation, String(describing: error))
                 },
                 publishState: { self.publishFormatStatus() }
             ))
@@ -1597,7 +1607,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         case .all:
             let ownProcess = try audioProcessObjectID(for: getpid())
             description = CATapDescription(stereoGlobalTapButExcludeProcesses: [ownProcess])
-            currentCaptureTargetSummary = "전체 시스템"
+            currentCaptureTargetSummary = L10n.string("runtime.target.system")
         case .bundleIDs(let bundleIDs):
             let processes = try resolveAudioProcesses(for: bundleIDs)
             description = CATapDescription(
@@ -1634,14 +1644,14 @@ final class SystemAudioProcessor: @unchecked Sendable {
             try check(AudioObjectGetPropertyData(tap, &address, 0, nil, &size, &value),
                       "AudioObjectGetPropertyData TapDescription")
             guard let description = value?.takeRetainedValue(), !description.isExclusive else {
-                throw AppError.message("앱별 캡처 대상 목록을 읽지 못했습니다.")
+                throw AppError.message(L10n.string("runtime.capture.listFailed"))
             }
             return description.processes
         }, identity: { objectID in
             let pid = try processPID(for: objectID)
             let bundleID = try processBundleID(for: objectID)
             guard try processPID(for: objectID) == pid else {
-                throw AppError.message("조회 중 캡처 프로세스가 변경되었습니다.")
+                throw AppError.message(L10n.string("runtime.capture.changed"))
             }
             return CaptureTargetSummary.Identity(pid: pid, bundleID: bundleID)
         })
@@ -1652,7 +1662,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .filter { !$0.isEmpty }
         guard !requested.isEmpty else {
-            throw AppError.message("특정 앱 bundle ID가 비어 있습니다.")
+            throw AppError.message(L10n.string("runtime.capture.emptyID"))
         }
 
         let connected = try Self.audioProcessInfos()
@@ -1672,7 +1682,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         let selected = connected.filter { resolvedIDs.contains($0.objectID) }
         guard !selected.isEmpty else {
             throw AppError.message(
-                "Core Audio에서 \(requestedBundleIDs.joined(separator: ", ")) 또는 하위 오디오 프로세스를 찾지 못했습니다. 앱에서 재생을 시작한 뒤 다시 적용하세요."
+                L10n.format("runtime.capture.notFound", requestedBundleIDs.joined(separator: ", "))
             )
         }
 
@@ -1946,6 +1956,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
         var event = LCControlEvent()
         var latestDSP = LCDSPSettings()
         var hasDSP = false
+        var latestDSPReceipt: UInt64 = 0
         var latestSpatial = LCSpatialSettings()
         var hasSpatial = false
         var spatialRevision: UInt64 = 0
@@ -1957,6 +1968,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
             switch event.type {
             case UInt32(LC_CONTROL_EVENT_DSP):
                 latestDSP = event.dsp
+                latestDSPReceipt = event.revision
                 hasDSP = true
             case UInt32(LC_CONTROL_EVENT_SPATIAL):
                 latestSpatial = event.spatial
@@ -1970,7 +1982,13 @@ final class SystemAudioProcessor: @unchecked Sendable {
             }
         }
 
-        if hasDSP { tonalDSP.update(latestDSP) }
+        if hasDSP {
+            tonalDSP.update(latestDSP)
+            controlQueue.acknowledgeDSP(latestDSPReceipt)
+        } else if initialToneReceipt != 0 {
+            controlQueue.acknowledgeDSP(initialToneReceipt)
+        }
+        initialToneReceipt = 0
 
         if hasSpatial {
             spatializer.update(latestSpatial)
@@ -2213,7 +2231,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                    "deduplicated current membership")
         try expect(readIDs == [1], "only tap members queried")
         try expect(try CaptureTargetSummary.read(processes: { [] }, identity: identity)
-                   == "연결된 캡처 프로세스 없음", "empty membership clears old PID")
+                   == L10n.string("runtime.capture.noProcesses"), "empty membership clears old PID")
         try expect(try CaptureTargetSummary.read(processes: { [2] }, identity: identity) == new,
                    "restored process identity replaces old PID")
         do {
@@ -2258,10 +2276,10 @@ final class SystemAudioProcessor: @unchecked Sendable {
             try expect(processor.captureTargetSummary == old, "actual published initial PID")
             observation.store(.success(new)); processor.refreshCaptureTargetSummary()
             try expect(processor.diagnosticsSnapshot().captureTarget == new, "diagnostics reflects refreshed PID")
-            observation.store(.success("연결된 캡처 프로세스 없음")); processor.refreshCaptureTargetSummary()
+            observation.store(.success(L10n.string("runtime.capture.noProcesses"))); processor.refreshCaptureTargetSummary()
             try expect(!processor.captureTargetSummary.contains("pid"), "absent member has no stale PID")
             observation.store(.failure(ReadFailure.disappeared)); processor.refreshCaptureTargetSummary()
-            try expect(processor.captureTargetSummary.hasPrefix("캡처 대상 조회 실패:"), "read failure replaces stale value")
+            try expect(processor.captureTargetSummary.hasPrefix(L10n.format("runtime.capture.queryFailed", "")), "read failure replaces stale value")
             observation.store(.success(new)); processor.refreshCaptureTargetSummary()
             try expect(processor.captureTargetSummary == new, "read failure recovers without graph restart")
             let count = reads.load(); processor.isStarted = false
@@ -2304,7 +2322,7 @@ final class SystemAudioProcessor: @unchecked Sendable {
                 let summary = processor.captureTargetSummary
                 let diagnostics = processor.diagnosticsSnapshot()
                 if processor.outputDeviceID != 777 || diagnostics.engineRestartCount != 0
-                    || !["전체 시스템", "manager resumed"].contains(summary) {
+                    || ![L10n.string("runtime.target.system"), "manager resumed"].contains(summary) {
                     invalidSnapshot = true
                 }
                 _ = processor.stopFailureDescription

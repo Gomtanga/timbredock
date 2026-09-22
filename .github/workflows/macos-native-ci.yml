@@ -15,6 +15,11 @@ jobs:
       - name: Check staged bundle replacement failure handling
         run: python3 scripts/check-native-build-script.py
 
+      - name: Check TimbreDock packaging and bilingual resources
+        run: |
+          python3 scripts/check-native-app-packaging.py
+          python3 scripts/check-localizations.py
+
       - name: Run Swift regression checks
         run: swift run --package-path SystemAudioProcessor -c debug LowEndSupportChecks
 

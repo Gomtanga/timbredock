@@ -1,7 +1,7 @@
 # TimbreDock v0.4.0 redesign
 
-Status: local implementation completed; release acceptance pending. Baseline: `52f745421cf17e5f070c690263ec8d79f51ff3ae`.
-This document describes the approved redesign. See [validation record](validation-v0.4.0.md) for completed implementation checks and outstanding device/release acceptance.
+Status: implementation, candidate packaging and repository cleanup completed; remaining acceptance coverage is recorded explicitly before release. Baseline: `52f745421cf17e5f070c690263ec8d79f51ff3ae`.
+This document describes the approved redesign. See [the current candidate report](release-candidate-v0.4.0.md) for device/CI/artifact results and remaining coverage; the [initial validation record](validation-v0.4.0.md) is historical.
 
 ## 2026-09-22 UI scope extension
 

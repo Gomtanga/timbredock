@@ -1,6 +1,6 @@
 # TimbreDock v0.4.0 validation record
 
-Local implementation and Release app completed on 2026-09-21. Physical-device/release acceptance is still pending. Baseline `52f745421cf17e5f070c690263ec8d79f51ff3ae`; branch `codex/timbredock-redesign`, separate worktree `/Users/geon-yeong/opencode/timbredock-redesign`. Changes are local and uncommitted.
+Local implementation and Release app completed on 2026-09-21. Physical-device/release acceptance is still pending. Baseline `52f745421cf17e5f070c690263ec8d79f51ff3ae`; branch `codex/timbredock-redesign`, separate worktree `/Users/geon-yeong/opencode/timbredock-redesign`. This paragraph records the original local, uncommitted state on that date. The current committed candidate, hosted CI, device checks and repository cleanup are recorded in [the 2026-09-23 candidate report](release-candidate-v0.4.0.md).
 
 ## Liquid Glass UI follow-up
 

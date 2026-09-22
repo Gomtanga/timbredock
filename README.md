@@ -23,7 +23,7 @@
 
 **한국어** · [English](README.en.md)
 
-> **TimbreDock v0.4.0 개발 중** — LowEnd Circuit의 새 이름입니다. 이 브랜치에서 UI·영어/한국어·신호 분석을 개편하고 있습니다. 아래 다운로드와 기존 화면은 안정 버전 v0.3.0을 기준으로 합니다. [개편 내용과 검증 기준](docs/redesign-v0.4.0.md) · [v0.4.0 guide](docs/timbredock-v0.4.0-guide.md) · [새 소스 빌드](docs/development.md)
+> **TimbreDock v0.4.0 릴리스 후보 준비** — LowEnd Circuit의 새 이름입니다. UI·영어/한국어·신호 분석 개편을 구현하고 후보 빌드와 CI를 검증했습니다. 정식 릴리스는 아직 게시하지 않았습니다. 아래 다운로드와 기존 화면은 안정 버전 v0.3.0을 기준으로 합니다. [최종 후보 검증과 남은 범위](docs/release-candidate-v0.4.0.md) · [v0.4.0 guide](docs/timbredock-v0.4.0-guide.md) · [새 소스 빌드](docs/development.md)
 
 ## 내 취향에 맞게, 듣는 공간까지
 

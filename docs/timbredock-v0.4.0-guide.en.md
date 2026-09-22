@@ -74,3 +74,5 @@ The bundle identifier and capture-lock path are retained, but this does not guar
 ## Language and harmonics follow-up
 
 Settings distinguishes the current interface language from the saved next-launch language. Fully quit with Command-Q and reopen to apply it. The Sound receipt line reports the model and two control values received by the audio callback; it does not establish audible effect strength. The unchanged Treble Harmonics algorithm can produce very small changes when high-frequency input energy is low. See the [follow-up verification record](validation-v0.4.0-language-treble.md).
+
+[Release-candidate verification and remaining coverage](release-candidate-v0.4.0.md)

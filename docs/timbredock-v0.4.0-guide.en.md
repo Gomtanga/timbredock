@@ -1,6 +1,6 @@
 # TimbreDock v0.4.0 guide
 
-The screenshots below come from the 2026-09-23 release-candidate build (8ab3a2d), which includes the monochrome Liquid Glass styling and `?` contextual help. See the [UI design record](ui-design-v0.4.0.md) and [Liquid Glass record](liquid-glass-v0.4.0.md) for layout rationale and verification scope.
+The screenshots below come from the 2026-09-23 release-candidate build (1bf8fed), which includes the monochrome Liquid Glass styling and `?` contextual help. See the [UI design record](ui-design-v0.4.0.md) and [Liquid Glass record](liquid-glass-v0.4.0.md) for layout rationale and verification scope.
 
 [한국어](timbredock-v0.4.0-guide.md) · [Redesign specification](redesign-v0.4.0.md)
 

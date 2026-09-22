@@ -1,6 +1,6 @@
 # TimbreDock v0.4.0 사용 안내
 
-2026-09-23 릴리스 후보 빌드(8ab3a2d)의 최신 화면을 기준으로 작성했습니다. 흑백 중심의 Liquid Glass 스타일과 `?` 도움말 방식을 반영했습니다. 화면 배경과 적용 범위는 [UI 디자인 기록](ui-design-v0.4.0.md)과 [Liquid Glass 기록](liquid-glass-v0.4.0.md)에 있습니다.
+2026-09-23 릴리스 후보 빌드(1bf8fed)의 최신 화면을 기준으로 작성했습니다. 흑백 중심의 Liquid Glass 스타일과 `?` 도움말 방식을 반영했습니다. 화면 배경과 적용 범위는 [UI 디자인 기록](ui-design-v0.4.0.md)과 [Liquid Glass 기록](liquid-glass-v0.4.0.md)에 있습니다.
 
 [English](timbredock-v0.4.0-guide.en.md) · [개편 명세](redesign-v0.4.0.md)
 

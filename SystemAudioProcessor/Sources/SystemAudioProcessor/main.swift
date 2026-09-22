@@ -1310,7 +1310,11 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         rateMatchStatusText = automaticRateMatchingEnabled ? L10n.string("runtime.rate.waiting") : L10n.string("runtime.rate.off")
         refreshOutputRateModeSelection()
         applyOutputConditioningControlEnabledState()
-        updateOutputConditioningStatus()
+        // Also refresh the Diagnostics rows. updateOutputConditioningStatus
+        // only owns the main status label, so a stopped 2x session followed
+        // by a Standard/Match Source switch could leave a stale
+        // "PCM 2x pending" row until something else called this.
+        refreshDiagnosticsPanel()
         pushOutputConditioningSettings()
         if pendingAudioOperation == nil, currentStopFailure == nil, currentProcessingFailure == nil {
             processor?.setAutomaticRateMatchingEnabled(automaticRateMatchingEnabled)
@@ -3083,6 +3087,37 @@ private final class NativeAppDelegate: NSObject, NSApplicationDelegate, NSWindow
         owner.currentStopFailure = "retained graph fixture"; owner.refreshDiagnosticsPanel()
         try require(owner.outputConditioningHeadroomSlider.isEnabled && owner.outputConditioningHeadroomCaption.stringValue.contains(L10n.string("main.output.state.stopFailed")), "failed stop preserves saved gain")
         try require(owner.outputConditioningHeadroomSlider.doubleValue == -6 && owner.outputConditioningHeadroomSlider.isContinuous, "gain preserved and continuous")
+        // Regression: a Diagnostics panel must not keep a stale "PCM 2x pending"
+        // row after a stopped 2x session switches back to Standard or Match
+        // Source. The mode handler itself refreshes the panel, so these checks
+        // deliberately never call refreshDiagnosticsPanel() after the switch.
+        owner.currentStopFailure = nil; owner.currentProcessingFailure = nil; owner.pendingAudioOperation = nil
+        let diagnosticsPage = owner.makeDiagnosticsPage()
+        defer { withExtendedLifetime(diagnosticsPage) {} }
+        try require(owner.diagConditioningValue != nil, "diagnostics panel exposes the conditioning row")
+        owner.outputRateModePopup.selectItem(at: 1); owner.outputRateModeChanged()
+        owner.currentLivePCM2xActive = true
+        owner.currentTapSampleRate = 48_000; owner.currentProcessingSampleRate = 96_000
+        owner.currentLivePCM2xFallback = ""
+        owner.refreshDiagnosticsPanel()
+        try require(owner.diagConditioningValue.stringValue == "PCM 2× active", "armed active 2x reports actual live state")
+        // A successful Stop clears the live flag; the stopped path refreshes the
+        // panel, which now shows the armed-but-inactive pending row.
+        owner.currentLivePCM2xActive = false; owner.currentLivePCM2xFallback = ""
+        owner.refreshDiagnosticsPanel()
+        try require(owner.diagConditioningValue.stringValue == L10n.string("main.state.pcm2xPending"), "stopped armed 2x reports pending")
+        owner.outputRateModePopup.selectItem(at: 0); owner.outputRateModeChanged()
+        try require(owner.diagConditioningValue.stringValue == "Off", "switching to Standard clears the stale pending 2x row")
+        try require(owner.outputConditioningStatusLabel.stringValue == L10n.string("main.status.ready"), "Standard returns the main status to ready")
+        // Match Source excludes 2x as well; the panel must not resurrect it.
+        owner.outputRateModePopup.selectItem(at: 1); owner.outputRateModeChanged()
+        owner.currentLivePCM2xActive = true; owner.refreshDiagnosticsPanel()
+        try require(owner.diagConditioningValue.stringValue == "PCM 2× active", "re-armed 2x reports live state before the switch")
+        owner.currentLivePCM2xActive = false
+        owner.outputRateModePopup.selectItem(at: 2); owner.outputRateModeChanged()
+        try require(!owner.outputConditioningEnabled && owner.automaticRateMatchingEnabled, "Match Source still excludes 2x")
+        try require(owner.diagConditioningValue.stringValue == "Off", "switching to Match Source clears the stale pending 2x row")
+
         for width: CGFloat in [730, 769, 950] {
             page.setFrameSize(NSSize(width: width, height: 490)); owner.layoutOutputConditioningPage()
             let slider = owner.outputConditioningHeadroomSlider.frame, value = owner.outputConditioningHeadroomValueLabel.frame

@@ -2,7 +2,7 @@
 
 [← Home](../README.en.md) · [한국어](development.md)
 
-This guide describes the v0.4.0 development source. The [v0.3.0 release](https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0) retains its original app and asset names.
+This guide describes the v0.4.0 development source. The [v0.3.0 release](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) retains its original app and asset names.
 
 ## Build from source
 
@@ -11,8 +11,8 @@ This guide describes the v0.4.0 development source. The [v0.3.0 release](https:/
 Building requires Xcode 26 / the macOS 26 SDK or later. The Liquid Glass surfaces use `NSGlassEffectView`, `NSGlassEffectContainerView` and `.glass`, so they must be compiled with an Xcode that ships this SDK. The resulting app still has a minimum runtime of macOS 14.4 and uses the existing fallback surfaces below macOS 26.
 
 ```sh
-git clone https://github.com/Gomtanga/lowend-circuit.git
-cd lowend-circuit
+git clone https://github.com/Gomtanga/timbredock.git
+cd timbredock
 ./scripts/build-native-system-audio-app.sh
 open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/TimbreDock.app"
 ```
@@ -89,6 +89,6 @@ docs/                           Usage, design, and validation records
 | [Source Format Validation](source-format-validation-2026-06-11.md) | Apple Music and TIDAL source-detection evidence |
 | [Source Rate Tracking and Device Lock Plan](source-rate-and-device-lock-plan.md) | Source, automatic transition, and Device Lock design |
 | [Cross-Platform Core Architecture](cross-platform-core-architecture.md) | Swift and C++ DSP-core integration design and migration plan |
-| [GitHub Releases](https://github.com/Gomtanga/lowend-circuit/releases) | Version changes, downloadable files, and verification results |
+| [GitHub Releases](https://github.com/Gomtanga/timbredock/releases) | Version changes, downloadable files, and verification results |
 
 Design documents and dated validation records describe the state at the time they were written. Check the latest code and release notes when you need the current behavior.

@@ -1,12 +1,12 @@
 # TimbreDock v0.4.0 사용 안내
 
-2026-09-22 화면이 Liquid Glass와 흑백 스타일로 개편됐습니다. 아래 이미지는 첫 구현 당시 화면이며, 최신 변경과 `?` 도움말 방식은 [UI 기록](liquid-glass-v0.4.0.md)을 참고하세요.
+2026-09-23 릴리스 후보 빌드(8ab3a2d)의 최신 화면을 기준으로 작성했습니다. 흑백 중심의 Liquid Glass 스타일과 `?` 도움말 방식을 반영했습니다. 화면 배경과 적용 범위는 [UI 디자인 기록](ui-design-v0.4.0.md)과 [Liquid Glass 기록](liquid-glass-v0.4.0.md)에 있습니다.
 
 [English](timbredock-v0.4.0-guide.en.md) · [개편 명세](redesign-v0.4.0.md)
 
-이 문서는 v0.4.0 개발 버전의 화면과 설정을 설명합니다. v0.3.0 배포 앱인 LowEnd Native Audio의 사용법은 [기존 설치 안내](getting-started.md)에 있습니다. v0.4.0의 기기별 청취 검증과 배포 상태는 별도로 확인해야 합니다.
+이 문서는 v0.4.0 후보 빌드의 화면과 설정을 설명합니다. 아직 공식 릴리즈로 게시하지 않았고, 현재 배포되는 안정 버전은 v0.3.0 LowEnd Native Audio입니다. v0.3.0 사용법은 [기존 설치 안내](getting-started.md)에 있습니다. 기기별 청취·장치 전환 등 최종 승인 항목은 별도로 확인합니다.
 
-실제 v0.4.0 개발 앱의 처리 중지 상태입니다. 모니터 이미지는 실시간 측정 결과가 아니라 수치와 그래프가 초기화된 화면입니다.
+아래 이미지는 오프라인 UI 렌더링입니다. 오디오 처리는 시작하지 않았고, 모니터 화면에는 실시간 측정값이 없습니다. 실제 Liquid Glass 재질과 SceneKit 합성 화면은 별도로 확인합니다.
 
 ![TimbreDock Sound](assets/v0.4.0-sound-ko.png)
 

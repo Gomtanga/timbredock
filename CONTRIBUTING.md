@@ -4,7 +4,7 @@
 
 ## 한국어
 
-버그와 기능 제안은 [GitHub Issues](https://github.com/Gomtanga/lowend-circuit/issues)에 남겨 주세요. 오디오 문제는 환경에 따라 재현 조건이 달라지므로 가능한 범위에서 다음 정보를 포함하면 좋습니다.
+버그와 기능 제안은 [GitHub Issues](https://github.com/Gomtanga/timbredock/issues)에 남겨 주세요. 오디오 문제는 환경에 따라 재현 조건이 달라지므로 가능한 범위에서 다음 정보를 포함하면 좋습니다.
 
 - 운영체제와 버전
 - CPU와 앱 버전
@@ -24,7 +24,7 @@
 
 ## English
 
-Report bugs and feature requests in [GitHub Issues](https://github.com/Gomtanga/lowend-circuit/issues). Audio problems depend heavily on the environment, so include as much of the following as you reasonably can:
+Report bugs and feature requests in [GitHub Issues](https://github.com/Gomtanga/timbredock/issues). Audio problems depend heavily on the environment, so include as much of the following as you reasonably can:
 
 - operating system and version
 - CPU and application version

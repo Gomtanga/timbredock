@@ -10,15 +10,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>macOS용 다운로드 ↗</strong></a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>macOS용 다운로드 ↗</strong></a> ·
   <a href="#quick-start">빠른 시작</a> ·
   <a href="#documentation">문서</a> ·
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0">v0.3.0 릴리스 노트</a>
+  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0">v0.3.0 릴리스 노트</a>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Gomtanga/lowend-circuit?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/lowend-circuit/releases/latest)
-[![macOS CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml)
-[![Core CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml)
+[![Release](https://img.shields.io/github/v/release/Gomtanga/timbredock?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/timbredock/releases/latest)
+[![macOS CI](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml)
+[![Core CI](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-486b87)](LICENSE)
 
 **한국어** · [English](README.en.md)
@@ -56,7 +56,7 @@ Circuit의 **IEM · Gentle · LowEnd · Deep · Clear**, HighExciter의 **Soft �
 
 | 지원 환경 | 배포 앱 |
 |---|---|
-| **macOS 14.4 이상 · Apple Silicon** | [LowEnd Native Audio v0.3.0 ZIP 다운로드](https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
+| **macOS 14.4 이상 · Apple Silicon** | [LowEnd Native Audio v0.3.0 ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
 
 1. ZIP을 풀고 **LowEnd Native Audio.app**을 **응용 프로그램** 폴더로 옮깁니다.
 2. 앱을 실행하고 macOS의 **시스템 오디오 녹음 권한**을 허용합니다.
@@ -109,12 +109,12 @@ Clean은 Circuit와 HighExciter 톤 모델만 우회합니다. Spatial과 Output
 | [오디오 가이드](docs/audio-guide.md) | 모델, 프리셋 수치, PCM 2×, 헤드룸, Source와 Rate Match |
 | [개발 가이드](docs/development.md) | 소스 빌드, 검증 명령, Swift·C++ 구조, 상세 설계 문서 |
 | [기여 안내](CONTRIBUTING.md) | 버그 신고에 필요한 정보와 변경 제안 방법 |
-| [릴리스 노트](https://github.com/Gomtanga/lowend-circuit/releases) | 버전별 변경 사항과 검증 범위 |
+| [릴리스 노트](https://github.com/Gomtanga/timbredock/releases) | 버전별 변경 사항과 검증 범위 |
 
 Source 표시는 확인 가능한 근거에 따라 제공되며, **자동 Rate Match는 기본값이 꺼진 실험 기능**입니다. 실시간 출력 컨디셔닝은 **PCM 2×**까지 지원합니다. 세부 조건과 실험 범위는 오디오·개발 가이드를 참고하세요.
 
 ## 함께 만들기
 
-버그나 아이디어는 [GitHub Issues](https://github.com/Gomtanga/lowend-circuit/issues)에 남겨 주세요. 코드 기여는 [개발 가이드](docs/development.md)와 [기여 안내](CONTRIBUTING.md)에서 시작할 수 있습니다. 이 저장소는 macOS 앱과 휴대용 C++ DSP 코어를 함께 개발합니다.
+버그나 아이디어는 [GitHub Issues](https://github.com/Gomtanga/timbredock/issues)에 남겨 주세요. 코드 기여는 [개발 가이드](docs/development.md)와 [기여 안내](CONTRIBUTING.md)에서 시작할 수 있습니다. 이 저장소는 macOS 앱과 휴대용 C++ DSP 코어를 함께 개발합니다.
 
 [GNU AGPL-3.0-or-later](LICENSE) 라이선스로 배포합니다. 독자적으로 설계한 DSP이며 특정 제조사와 제휴하거나 독점 회로의 정확한 재현을 주장하지 않습니다. 제3자의 이름과 상표는 각 소유자에게 귀속됩니다.

@@ -2,7 +2,7 @@
 
 [← 홈](../README.md) · [English](development.en.md)
 
-이 문서는 v0.4.0 개발 소스를 기준으로 합니다. [v0.3.0 배포 파일](https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0)은 기존 앱과 파일 이름을 유지합니다.
+이 문서는 v0.4.0 개발 소스를 기준으로 합니다. [v0.3.0 배포 파일](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0)은 기존 앱과 파일 이름을 유지합니다.
 
 ## 소스에서 빌드
 
@@ -11,8 +11,8 @@
 Xcode 26 / macOS 26 SDK 이상이 필요합니다. Liquid Glass 화면은 `NSGlassEffectView`·`NSGlassEffectContainerView`와 `.glass`를 사용하므로 이 SDK가 포함된 Xcode로 컴파일해야 합니다. 생성된 앱의 최소 실행 버전은 macOS 14.4이며, macOS 26 미만에서는 기존 대체 화면 경로를 사용합니다.
 
 ```sh
-git clone https://github.com/Gomtanga/lowend-circuit.git
-cd lowend-circuit
+git clone https://github.com/Gomtanga/timbredock.git
+cd timbredock
 ./scripts/build-native-system-audio-app.sh
 open "build/LowEndCircuit_artefacts/Release/NativeSystemAudio/TimbreDock.app"
 ```
@@ -89,6 +89,6 @@ docs/                           사용법, 설계, 검증 기록
 | [Source Format Validation](source-format-validation-2026-06-11.md) | Apple Music·TIDAL 소스 감지 검증 기록 |
 | [Source Rate Tracking and Device Lock Plan](source-rate-and-device-lock-plan.md) | Source, 자동 전환, Device Lock 설계 |
 | [Cross-Platform Core Architecture](cross-platform-core-architecture.md) | Swift·C++ DSP 코어 통합 설계와 이행 계획 |
-| [GitHub Releases](https://github.com/Gomtanga/lowend-circuit/releases) | 버전별 변경 사항, 배포 파일, 검증 결과 |
+| [GitHub Releases](https://github.com/Gomtanga/timbredock/releases) | 버전별 변경 사항, 배포 파일, 검증 결과 |
 
 설계 문서와 날짜가 붙은 검증 기록은 작성 당시의 상태를 담고 있습니다. 현재 동작을 확인할 때는 최신 코드와 릴리스 노트를 함께 보세요.

@@ -1,12 +1,12 @@
 # TimbreDock v0.4.0 guide
 
-The UI was updated to monochrome Liquid Glass on 2026-09-22. Screenshots below show the first implementation. See the [UI record](liquid-glass-v0.4.0.md) for the current layout and contextual help.
+The screenshots below come from the 2026-09-23 release-candidate build (8ab3a2d), which includes the monochrome Liquid Glass styling and `?` contextual help. See the [UI design record](ui-design-v0.4.0.md) and [Liquid Glass record](liquid-glass-v0.4.0.md) for layout rationale and verification scope.
 
 [한국어](timbredock-v0.4.0-guide.md) · [Redesign specification](redesign-v0.4.0.md)
 
-This guide describes the v0.4.0 development build. The published v0.3.0 LowEnd Native Audio app uses the [previous getting-started guide](getting-started.en.md). Device listening acceptance and release availability are tracked separately.
+This guide describes the v0.4.0 release-candidate build. It has not been published as a formal release; v0.3.0 LowEnd Native Audio remains the published stable version, covered by the [previous getting-started guide](getting-started.en.md). Device listening, transition and other final acceptance items are tracked separately.
 
-Actual v0.4.0 development app, with processing stopped. The monitor screenshot shows its cleared state, not live audio measurements.
+The images below are offline UI renderings. Processing was not started and the Signal Monitor has no live measurements. Actual Liquid Glass material and SceneKit compositing are verified separately.
 
 ![TimbreDock Sound](assets/v0.4.0-sound-en.png)
 

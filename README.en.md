@@ -10,15 +10,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>Download for macOS ↗</strong></a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>Download for macOS ↗</strong></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#documentation">Documentation</a> ·
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0">v0.3.0 release notes</a>
+  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0">v0.3.0 release notes</a>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Gomtanga/lowend-circuit?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/lowend-circuit/releases/latest)
-[![macOS CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml)
-[![Core CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml)
+[![Release](https://img.shields.io/github/v/release/Gomtanga/timbredock?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/timbredock/releases/latest)
+[![macOS CI](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml)
+[![Core CI](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-486b87)](LICENSE)
 
 [한국어](README.md) · **English**
@@ -56,7 +56,7 @@ Start with Circuit **IEM · Gentle · LowEnd · Deep · Clear** or HighExciter *
 
 | Supported system | App |
 |---|---|
-| **macOS 14.4 or newer · Apple Silicon** | [Download LowEnd Native Audio v0.3.0 ZIP](https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
+| **macOS 14.4 or newer · Apple Silicon** | [Download LowEnd Native Audio v0.3.0 ZIP](https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
 
 1. Extract the ZIP and move **LowEnd Native Audio.app** to **Applications**.
 2. Open the app and allow macOS **system-audio recording** permission.
@@ -109,12 +109,12 @@ Check for another running copy of the app, system-audio recording permission, an
 | [Audio guide](docs/audio-guide.en.md) | Models, preset values, PCM 2×, headroom, Source, and Rate Match |
 | [Development](docs/development.en.md) | Building from source, verification commands, Swift/C++ architecture, design references |
 | [Contributing](CONTRIBUTING.md) | Useful bug reports and change proposals |
-| [Release notes](https://github.com/Gomtanga/lowend-circuit/releases) | Changes and verification scope for each version |
+| [Release notes](https://github.com/Gomtanga/timbredock/releases) | Changes and verification scope for each version |
 
 Source information depends on available evidence. **Automatic Rate Match is experimental and off by default.** Live Output Conditioning supports **PCM 2×**. The audio and development guides cover the conditions and experimental scope.
 
 ## Build with us
 
-Report bugs and ideas in [GitHub Issues](https://github.com/Gomtanga/lowend-circuit/issues). For code contributions, start with [Development](docs/development.en.md) and [Contributing](CONTRIBUTING.md). This repository develops both the macOS app and a portable C++ DSP core.
+Report bugs and ideas in [GitHub Issues](https://github.com/Gomtanga/timbredock/issues). For code contributions, start with [Development](docs/development.en.md) and [Contributing](CONTRIBUTING.md). This repository develops both the macOS app and a portable C++ DSP core.
 
 Released under [GNU AGPL-3.0-or-later](LICENSE). This is an original DSP design, without manufacturer affiliation or claims of exact proprietary-circuit reproduction. Third-party names and trademarks belong to their respective owners.

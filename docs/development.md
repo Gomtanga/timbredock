@@ -8,7 +8,7 @@
 
 ### TimbreDock
 
-macOS 14.4 이상과 최신 Xcode 명령줄 도구 또는 Swift 도구 체인이 필요합니다.
+Xcode 26 / macOS 26 SDK 이상이 필요합니다. Liquid Glass 화면은 `NSGlassEffectView`·`NSGlassEffectContainerView`와 `.glass`를 사용하므로 이 SDK가 포함된 Xcode로 컴파일해야 합니다. 생성된 앱의 최소 실행 버전은 macOS 14.4이며, macOS 26 미만에서는 기존 대체 화면 경로를 사용합니다.
 
 ```sh
 git clone https://github.com/Gomtanga/lowend-circuit.git

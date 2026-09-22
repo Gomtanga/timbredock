@@ -8,7 +8,7 @@ This guide describes the v0.4.0 development source. The [v0.3.0 release](https:/
 
 ### TimbreDock
 
-You need macOS 14.4 or newer and a current Xcode command-line or Swift toolchain.
+Building requires Xcode 26 / the macOS 26 SDK or later. The Liquid Glass surfaces use `NSGlassEffectView`, `NSGlassEffectContainerView` and `.glass`, so they must be compiled with an Xcode that ships this SDK. The resulting app still has a minimum runtime of macOS 14.4 and uses the existing fallback surfaces below macOS 26.
 
 ```sh
 git clone https://github.com/Gomtanga/lowend-circuit.git

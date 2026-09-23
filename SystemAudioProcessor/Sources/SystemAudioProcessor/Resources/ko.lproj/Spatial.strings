@@ -1,0 +1,90 @@
+/* Spatial 페이지 문자열 (한국어). 키는 en.lproj/Spatial.strings와 일치해야 합니다. */
+
+"spatial.page.title" = "공간 음향";
+"spatial.page.subtitle" = "청취 위치와 두 가상 스피커 사이의 폭을 조절합니다.";
+
+"spatial.view.label" = "보기";
+"spatial.view.planar" = "평면";
+"spatial.view.perspective" = "입체";
+
+"spatial.enabledOn" = "공간 음향 ON";
+"spatial.enabledOff" = "공간 음향 OFF";
+
+"spatial.resetListener" = "청취자 원위치";
+"spatial.resetAll" = "Spatial 전체 초기화";
+"spatial.fitCamera" = "무대 전체 보기";
+"spatial.grid" = "격자";
+"spatial.paths" = "경로";
+
+"spatial.stageHint.planar" = "바닥 클릭: 청취자 이동 · 스피커 드래그: 폭 조절 · 방향키: 0.01 m · Shift: 0.10 m";
+"spatial.stageHint.perspective" = "Option+드래그: 회전 · 가운데 버튼: 이동 · 스크롤: 확대 · 바닥 드래그: 위치 조절";
+
+"spatial.inspector.target" = "조절 대상";
+"spatial.selection.none" = "전체";
+"spatial.selection.listener" = "청취자";
+"spatial.selection.left" = "L";
+"spatial.selection.right" = "R";
+"spatial.selection.accessibilityLabel" = "공간 조절 대상 선택";
+
+"spatial.value.listenerX" = "좌우 위치 X";
+"spatial.value.listenerZ" = "앞뒤 위치 Z";
+"spatial.value.speakerWidth" = "가상 스피커 폭";
+"spatial.value.amount" = "공간 처리량";
+
+"spatial.unit.meters" = "m";
+
+"spatial.inspector.axisHint" = "+X는 오른쪽, +Z는 스피커 쪽입니다.";
+"spatial.inspector.widthHint" = "두 스피커는 중앙에 대칭으로 배치됩니다. 전방 위치 Z는 1.80 m로 고정됩니다.";
+"spatial.inspector.noneHint" = "청취자 또는 L/R 스피커를 선택하면 좌표와 폭을 정밀하게 입력할 수 있습니다.";
+
+"spatial.amountHint.off" = "OFF · 원본 신호를 출력합니다. 배치는 유지됩니다.";
+"spatial.amountHint.zero" = "0% · 원본 신호만 출력합니다.";
+"spatial.amountHint.on" = "ON · 원본과 거리·상대 지연·크로스피드 처리 신호를 혼합합니다.";
+
+"spatial.validation.finite" = "유한한 숫자를 입력해 주세요. 직전 값을 유지했습니다.";
+
+"spatial.control.range" = "%@, %@, %@부터 %@";
+"spatial.control.decrease" = "%@ 한 단계 감소";
+"spatial.control.increase" = "%@ 한 단계 증가";
+"spatial.control.slider" = "%@ 슬라이더, %@";
+"spatial.control.invalid" = "올바른 숫자를 입력해 주세요.";
+
+"spatial.details.title" = "경로와 DSP 목표값";
+"spatial.details.pending" = "목표값 전달 대기";
+"spatial.details.preview" = "목표값 미리보기";
+"spatial.details.submitted" = "목표값 전달 요청 완료";
+"spatial.details.noDeviceStatus" = "장치 수신 상태는 아직 확인되지 않았습니다.";
+"spatial.details.rateRelativeDelay" = "처리율 %.1f kHz · 최소 경로 기준 상대 지연";
+"spatial.details.crossfeed" = "Crossfeed %.3f · 점선은 반사가 아닌 반대쪽 귀 경로입니다.";
+"spatial.details.gainNote" = "gain은 wet 경로 계수입니다. 목표 수신·보간 중 실제 파형과 구분되며 최종 혼합에는 출력 trim과 포화 처리가 추가됩니다.";
+"spatial.details.waitingRate" = "처리율을 확인하는 동안 경로 계산을 기다립니다.";
+
+"spatial.path.ll" = "LL 직접";
+"spatial.path.lr" = "LR 크로스";
+"spatial.path.rl" = "RL 크로스";
+"spatial.path.rr" = "RR 직접";
+"spatial.pathRow.metrics" = "거리 %.3f m · gain %.3f · %.3f ms (%u samples)";
+"spatial.pathRow.distanceFloor" = "DSP 거리 하한 적용: %.3f m";
+"spatial.pathRow.delayLimited" = "지연 버퍼 한계로 일부 지연이 제한됩니다.";
+
+"spatial.state.on" = "ON";
+"spatial.state.off" = "OFF";
+"spatial.state.selected" = "선택됨";
+"spatial.state.unselected" = "선택 안 됨";
+
+"spatial.stage.accessibilityLabel" = "공간 무대. 청취자, 왼쪽 스피커, 오른쪽 스피커 선택 버튼과 Inspector로 편집할 수 있습니다.";
+"spatial.stage.selectListener" = "청취자 선택";
+"spatial.stage.selectLeft" = "왼쪽 스피커 선택";
+"spatial.stage.selectRight" = "오른쪽 스피커 선택";
+"spatial.stage.front" = "앞 +Z";
+"spatial.stage.widthLabel" = "폭 %.2f m";
+"spatial.stage.widthValue" = "가상 스피커 폭 %.2f 미터";
+"spatial.stage.listenerTooltip" = "청취자 X %.2f m, Z %.2f m. 무대에서 방향키로 이동합니다.";
+"spatial.stage.listenerValue" = "X %.2f 미터, Z %.2f 미터, %@";
+"spatial.stage.speakerValue" = "%@, %@";
+"spatial.stage.leftTooltip" = "왼쪽 스피커 · 폭 조절";
+"spatial.stage.rightTooltip" = "오른쪽 스피커 · 폭 조절";
+"spatial.stage.stateLabel" = "%@ · 격자 0.5 m · 오른쪽 +X · 앞 +Z";
+"spatial.stage.coordinates" = "%@ · X %+.2f m · Z %+.2f m";
+"spatial.stage.coordinatesLabel" = "선택한 %@의 DSP 평면 좌표";
+"spatial.stage.coordinatesTooltip" = "선택 객체의 DSP 평면 좌표입니다. 회색 안내선은 오디오 경로가 아닙니다.";

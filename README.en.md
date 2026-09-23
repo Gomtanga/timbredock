@@ -1,118 +1,109 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero-light.svg">
-  <img src="docs/assets/hero-dark.svg" width="1200" alt="LowEnd Circuit — Bass. Harmonics. Space.">
+  <img src="docs/assets/hero-dark.svg" width="1200" alt="TimbreDock — Bass. Harmonics. Space.">
 </picture>
 
 <p align="center">
-  <strong>Add bass weight, harmonic texture, and headphone space to your Mac.</strong><br>
-  Open-source DSP for system-wide or per-application audio, in real time.
+  <strong>Shape your Mac's sound and listening space.</strong><br>
+  Open-source macOS audio processing for the whole system or one app, with bass, harmonics and stereo space.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>Download for macOS ↗</strong></a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip"><strong>Download TimbreDock v0.4.0</strong></a> ·
+  <a href="#features">Features</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="#documentation">Documentation</a> ·
-  <a href="https://github.com/Gomtanga/lowend-circuit/releases/tag/v0.3.0">v0.3.0 release notes</a>
+  <a href="#documentation">Documentation</a>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Gomtanga/lowend-circuit?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/lowend-circuit/releases/latest)
-[![macOS CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/macos-native-ci.yml)
-[![Core CI](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/lowend-circuit/actions/workflows/cross-platform-core-ci.yml)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-486b87)](LICENSE)
+<p align="center">
+  <a href="https://github.com/Gomtanga/timbredock/releases/latest"><img src="https://img.shields.io/github/v/release/Gomtanga/timbredock?display_name=tag&amp;sort=semver&amp;color=111111" alt="Latest public release"></a>
+  <a href="https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml"><img src="https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml/badge.svg" alt="macOS CI"></a>
+  <a href="https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml"><img src="https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml/badge.svg" alt="Core CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-444444" alt="AGPL-3.0-or-later license"></a>
+</p>
 
 [한국어](README.md) · **English**
 
-## Shape your sound and your listening space
+> **v0.4.0 release** — [Download the Apple Silicon Mac ZIP](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [Release notes](https://github.com/Gomtanga/timbredock/releases/tag/v0.4.0). The earlier **LowEnd Native Audio v0.3.0** remains available from its [original release](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0). [Candidate results and remaining coverage (Korean)](docs/release-candidate-v0.4.0.md)
 
-**LowEnd Native Audio**, the macOS app from **LowEnd Circuit**, processes music, browser audio, and games before sending them to your current output device. Shape the bass, add harmonics, and position virtual speakers and the listener to adjust headphone space.
+<a id="features"></a>
 
-You can use **Bluetooth wireless earbuds** as well as wired headphones. Connect your earbuds to your Mac, select them as the macOS output device, then apply system-wide or per-application audio processing.
+## Shape sound and space in one app
 
-<img src="docs/assets/spatial-stage.png" width="1224" alt="Actual LowEnd Native Audio Spatial Stage interface, showing left and right virtual speakers and a listener in a 3D stage, with position and spatial controls on the right.">
+TimbreDock processes macOS audio before it reaches the selected output device. Use **System Audio** for most system sound or select one running app. Sound, Spatial and Output have independent settings, and effect values remain editable while processing.
 
-<p align="center"><sub>Spatial Stage · Actual app interface with direct control of speaker and listener positions</sub></p>
+<img src="docs/assets/v0.4.0-sound-en.png" width="1180" alt="TimbreDock v0.4.0 Sound page showing Bass Boost, three controls and presets.">
 
-| Bass and texture | Space and signal insight |
+<p align="center"><sub>v0.4.0 Sound page · offline UI image captured without audio playback</sub></p>
+
+| Page | What it does |
 |---|---|
-| **Circuit** — Shape bass weight and saturation texture with LowEnd and Body. | **Spatial Stage** — Adjust speaker width, listener position, distance gain, and crossfeed. |
-| **HighExciter** — Generate and blend harmonics from high-frequency content, with internal nonlinear-stage oversampling. | **Analysis** — Inspect the signal with a real-time spectrum, Peak, RMS, and Crest Factor. |
+| **Sound** | Bass Boost controls bass amount and fullness; Treble Harmonics controls harmonic generation and the amount added. Off bypasses only the tone model. |
+| **Spatial** | Move virtual speakers and the listener in planar or 3D views, then set the spatial amount. |
+| **Signal Monitor** | See relative frequency content and Peak, RMS and Crest of the processed signal. These are not sound-pressure or true-peak measurements. |
+| **Output** | Choose one of Standard, experimental PCM 2× Upsampling or experimental Match Source Sample Rate. |
+| **Settings** | Choose English or Korean and inspect diagnostics. A saved language change takes effect after fully quitting and reopening the app. |
 
-Spatial Stage is a geometry-based stereo processor. It does not provide individualized HRTF rendering or room reverb.
+<img src="docs/assets/v0.4.0-spatial-en.png" width="1122" alt="Actual TimbreDock v0.4.0 Spatial 3D page showing left and right virtual speakers, the listener and spatial controls.">
 
-### A few controls. Your own sound.
+<p align="center"><sub>Spatial 3D in the running v0.4.0 candidate · English interface</sub></p>
 
-Start with Circuit **IEM · Gentle · LowEnd · Deep · Clear** or HighExciter **Soft · Air · Detail · Shimmer · Off**, then adjust the details. Presets can differ in loudness, so compare output levels as well as tone.
-
-<img src="docs/assets/circuit.png" width="1080" alt="Actual LowEnd Native Audio Circuit interface, with LowEnd, Body, and Output sliders and the IEM, Gentle, LowEnd, Deep, and Clear presets.">
-
-<p align="center"><sub>Circuit · Model selection, bass controls, and presets in one view</sub></p>
+Spatial uses stereo distance, timing and crossfeed. It does not provide individualized HRTF rendering or room reverb. [Learn how to adjust it](docs/timbredock-v0.4.0-guide.en.md)
 
 <a id="quick-start"></a>
 
-## Download and start listening
+## Download and quick start
 
-| Supported system | App |
-|---|---|
-| **macOS 14.4 or newer · Apple Silicon** | [Download LowEnd Native Audio v0.3.0 ZIP](https://github.com/Gomtanga/lowend-circuit/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
+| Version | App name | How to get it |
+|---|---|---|
+| **v0.4.0 · latest release** | TimbreDock | [Download the macOS arm64 ZIP](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [Verify SHA-256](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/SHA256SUMS.txt) · [User guide](docs/timbredock-v0.4.0-guide.en.md) |
+| **v0.3.0 · previous release** | LowEnd Native Audio | [Original release page](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [Previous setup guide](docs/getting-started.en.md) |
 
-1. Extract the ZIP and move **LowEnd Native Audio.app** to **Applications**.
-2. Open the app and allow macOS **system-audio recording** permission.
-3. Start with **Circuit → IEM or Gentle**, or **HighExciter → Soft or Air**.
-4. Press the **speaker button at the bottom left (전체 시스템 적용 / Apply System-wide)**, then play music.
+The distributed app targets **Apple Silicon Macs running macOS 14.4 or later**. No Intel Mac or Windows app is provided. Building the v0.4.0 source requires **Xcode 26 with the macOS 26 SDK or later**.
 
-The app is **ad-hoc signed and not notarized by Apple**. If macOS blocks the first launch, check its source, then use **System Settings → Privacy & Security → Open Anyway**. See [Getting started](docs/getting-started.en.md) for installation and per-application processing. The current app interface uses Korean labels.
+Once you have the v0.4.0 TimbreDock app:
 
-**Run only one copy of the app.** Disable exclusive output in players such as TIDAL, and press **중지 (Stop)** before changing output devices.
+1. Select the desired macOS output device and grant TimbreDock **system-audio recording** permission.
+2. Select **System Audio** in the header, or use **Choose app…** to select a running application.
+3. Open **Sound**, choose Bass Boost or Treble Harmonics, and start with modest settings.
+4. Press **Apply**, then check the actual processing state and output device in the header. Apply again after changing the target app.
+5. Press **Stop** before changing output devices or ending processing, and check that the device rate is restored.
 
-<a id="faq"></a>
+Mac speakers, wired headphones and **Bluetooth wireless earbuds** can be selected as macOS outputs; an external DAC is optional. Wireless codecs, latency and supported sample rates vary by device, and not every device can run 2× output. The [candidate report (Korean)](docs/release-candidate-v0.4.0.md) identifies wireless-device testing that remains open for v0.4.0.
 
-## Common questions
+Run one copy of the app at a time. Exclusive-output modes in players can bypass the macOS processing path. The app is ad-hoc signed and is not notarized by Apple. If macOS blocks first launch, verify its source and follow the [setup guide](docs/getting-started.en.md).
 
-<details>
-<summary><strong>Are HighExciter oversampling and PCM Oversampling 2× the same feature?</strong></summary>
+## Understand the output and meters
 
-They act at different points. HighExciter oversamples its nonlinear harmonic-generation stage and returns to the processing rate. Output Conditioning PCM 2× raises the output rate after tonal and Spatial processing. You can use both together. Supported devices can output at 44.1 → 88.2 kHz or 48 → 96 kHz.
+```text
+Playing app → macOS audio capture → Sound → Spatial → Output → selected device
+                                                 └─ Signal Monitor
+```
 
-</details>
+- Sound **Off** leaves Spatial and Output independent. For a dry comparison, turn Spatial off and choose Standard output.
+- Treble Harmonics **Harmonic Oversampling** acts inside harmonic generation. Output **2× Upsampling** raises the output rate after tone and Spatial processing. They serve different purposes.
+- **Upsampling Gain** attenuates the signal only when PCM 2× output is actually active. A saved value alone does not change the level, and this control is not a limiter.
+- Signal Monitor observes audio after Sound, Spatial and Output, but before playback fade and device volume. Its values are not listening sound-pressure measurements.
 
-<details>
-<summary><strong>Why does headroom leave the volume unchanged? Do I need an external DAC?</strong></summary>
-
-Headroom affects audio only while **PCM 2× is actually active**. Check the active status as well as the selected setting. An external DAC is optional; a built-in output can work if it supports the target rate. See the [Audio guide](docs/audio-guide.en.md) for the conditions.
-
-</details>
-
-<details>
-<summary><strong>Does Clean turn off all processing?</strong></summary>
-
-Clean bypasses the Circuit and HighExciter tonal models. Spatial and Output Conditioning operate independently; turn them off separately for a dry comparison.
-
-</details>
-
-<details>
-<summary><strong>What should I check if applying processing produces silence?</strong></summary>
-
-Check for another running copy of the app, system-audio recording permission, and the selected output device. Disable the player's exclusive mode, then **Stop → apply again**. For per-application capture, start playback in the target app first. Follow the checks in [Getting started](docs/getting-started.en.md).
-
-</details>
+The Treble processing band and strength curve are planned for improvement in **v0.4.1**. In v0.4.0, material with little high-frequency energy may produce only a subtle change. [Measurement and verification notes](docs/validation-v0.4.0-language-treble.md)
 
 <a id="documentation"></a>
 
-## Explore the documentation
+## Documentation and development
 
-| Guide | Find out about |
+| Document | What you will find |
 |---|---|
-| [Getting started](docs/getting-started.en.md) | Downloads, permissions, system-wide and per-app use, silence checks |
-| [Audio guide](docs/audio-guide.en.md) | Models, preset values, PCM 2×, headroom, Source, and Rate Match |
-| [Development](docs/development.en.md) | Building from source, verification commands, Swift/C++ architecture, design references |
-| [Contributing](CONTRIBUTING.md) | Useful bug reports and change proposals |
-| [Release notes](https://github.com/Gomtanga/lowend-circuit/releases) | Changes and verification scope for each version |
+| [v0.4.0 user guide](docs/timbredock-v0.4.0-guide.en.md) | Five pages, presets, output modes, language changes and troubleshooting |
+| [Release-candidate report (Korean)](docs/release-candidate-v0.4.0.md) | Hardware, UI and CI results, plus remaining verification |
+| [v0.3.0 setup guide](docs/getting-started.en.md) | Installation and permissions for the previous release |
+| [Development guide](docs/development.en.md) | Source builds, offline checks and the Swift/C++ architecture |
+| [Contributing](CONTRIBUTING.md) | What to include in an issue or change proposal |
 
-Source information depends on available evidence. **Automatic Rate Match is experimental and off by default.** Live Output Conditioning supports **PCM 2×**. The audio and development guides cover the conditions and experimental scope.
+The macOS app runs on the Swift and C engine in `SystemAudioProcessor/`. `Source/Core/` contains a separately testable portable C++ DSP core; it does not imply a distributed Windows app. From the v0.4.0 source checkout, build the macOS app with the following command. See [Development](docs/development.en.md) for full requirements and verification commands.
 
-## Build with us
+```sh
+./scripts/build-native-system-audio-app.sh
+```
 
-Report bugs and ideas in [GitHub Issues](https://github.com/Gomtanga/lowend-circuit/issues). For code contributions, start with [Development](docs/development.en.md) and [Contributing](CONTRIBUTING.md). This repository develops both the macOS app and a portable C++ DSP core.
-
-Released under [GNU AGPL-3.0-or-later](LICENSE). This is an original DSP design, without manufacturer affiliation or claims of exact proprietary-circuit reproduction. Third-party names and trademarks belong to their respective owners.
+Report bugs and ideas through [GitHub Issues](https://github.com/Gomtanga/timbredock/issues). This project is released under [GNU AGPL-3.0-or-later](LICENSE). Its DSP is an original design, without manufacturer affiliation or claims of exact proprietary-circuit reproduction.

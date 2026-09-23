@@ -12,11 +12,11 @@ enum CaptureTargetSummary {
     static func read(processes: () throws -> [UInt32],
                      identity: (UInt32) throws -> Identity) throws -> String {
         let ids = try Set(processes()).sorted()
-        guard !ids.isEmpty else { return "연결된 캡처 프로세스 없음" }
+        guard !ids.isEmpty else { return L10n.string("runtime.capture.noProcesses") }
         return try ids.map { id in
             let process = try identity(id)
             guard id != 0, process.pid > 0, !process.bundleID.isEmpty else {
-                throw AppError.message("캡처 프로세스 정보가 변경되었거나 유효하지 않습니다.")
+                throw AppError.message(L10n.string("runtime.capture.invalid"))
             }
             return "\(process.bundleID) (pid \(process.pid))"
         }.joined(separator: ", ")
@@ -32,11 +32,11 @@ struct AudioFlowProgress: Sendable, Equatable {
 
     var isConfirmed: Bool { generation > 0 && producedSamples > 0 && consumedSamples > 0 }
     var displayText: String {
-        if isConfirmed { return "입력·출력 데이터 확인" }
-        if producedSamples > 0 { return "출력 데이터 대기" }
-        return "오디오 데이터 대기"
+        if isConfirmed { return L10n.string("runtime.flow.confirmed") }
+        if producedSamples > 0 { return L10n.string("runtime.flow.waitingOutput") }
+        return L10n.string("runtime.flow.waitingAudio")
     }
-    static let waitingHelp = "음원을 재생하고 시스템 오디오 접근 요청이 있으면 허용해 주세요. 입력과 출력 데이터가 진행되면 상태가 갱신됩니다."
+    static let waitingHelp = L10n.string("runtime.flow.help")
 }
 
 struct AudioDiagnosticsSnapshot: Sendable {

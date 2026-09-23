@@ -75,6 +75,7 @@ struct LCControlEventQueue {
     atomic_uint_fast64_t readIndex;
     atomic_uint_fast64_t writeIndex;
     atomic_uint_fast64_t appliedRevision;
+    atomic_uint_fast64_t dspReceipt;
 };
 
 struct LCSpectrumSnapshot {
@@ -497,6 +498,10 @@ LCControlEventQueue *lc_control_event_queue_create(uint32_t requestedCapacityEve
     atomic_init(&queue->readIndex, 0);
     atomic_init(&queue->writeIndex, 0);
     atomic_init(&queue->appliedRevision, 0);
+    atomic_init(&queue->dspReceipt, 0);
+    if (!atomic_is_lock_free(&queue->dspReceipt)) {
+        free(queue->storage); free(queue); return NULL;
+    }
     return queue;
 }
 
@@ -559,6 +564,13 @@ void lc_control_event_queue_acknowledge(LCControlEventQueue *queue, uint64_t rev
 }
 uint64_t lc_control_event_queue_applied_revision(const LCControlEventQueue *queue) {
     return queue ? atomic_load_explicit(&queue->appliedRevision, memory_order_acquire) : 0;
+}
+
+void lc_control_event_queue_publish_dsp_receipt(LCControlEventQueue *queue, uint64_t receipt) {
+    if (queue) atomic_store_explicit(&queue->dspReceipt, receipt, memory_order_release);
+}
+uint64_t lc_control_event_queue_dsp_receipt(const LCControlEventQueue *queue) {
+    return queue ? atomic_load_explicit(&queue->dspReceipt, memory_order_acquire) : 0;
 }
 
 LCSpectrumSnapshot *lc_spectrum_snapshot_create(void) {

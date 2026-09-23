@@ -15,7 +15,7 @@ struct ManagerDisplayState {
     var outputSampleRate: Double = 48_000
     var tapSampleRate: Double = 48_000
     var restartCount: UInt64 = 0
-    var captureTarget = "전체 시스템"
+    var captureTarget = L10n.string("runtime.target.system")
     var audioFlowGeneration: UInt64 = 0
     var ringWrittenAtCaptureStart: UInt64 = 0
     var ringReadAtCaptureStart: UInt64 = 0

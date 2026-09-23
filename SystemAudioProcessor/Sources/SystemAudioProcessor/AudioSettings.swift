@@ -62,9 +62,9 @@ struct Settings {
 
         var displayName: String {
             switch self {
-            case .clean: return "Clean"
-            case .circuit: return "Circuit"
-            case .highExciter: return "HighExciter"
+            case .clean: return L10n.string("runtime.model.clean")
+            case .circuit: return L10n.string("runtime.model.circuit")
+            case .highExciter: return L10n.string("runtime.model.exciter")
             }
         }
 

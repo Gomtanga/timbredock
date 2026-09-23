@@ -1,33 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
-  <title id="title">LowEnd Circuit</title>
+  <title id="title">TimbreDock</title>
   <desc id="desc">Bass. Harmonics. Space. An open-source macOS audio project, with a stereo stage illustration.</desc>
-  <rect x="1" y="1" width="1198" height="318" rx="24" fill="#f4f7fb" stroke="#d5dfe9"/>
+  <rect x="1" y="1" width="1198" height="318" rx="24" fill="#fafafa" stroke="#d8d8da"/>
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-    <rect x="52" y="51" width="32" height="4" rx="2" fill="#a96910"/>
-    <text x="99" y="59" fill="#50667c" font-size="12" font-weight="600" letter-spacing="2.1">OPEN-SOURCE AUDIO · macOS</text>
-    <text x="48" y="145" fill="#182838" font-size="66" font-weight="750" letter-spacing="-2.8">LowEnd Circuit</text>
-    <text x="52" y="192" fill="#50667c" font-size="26" letter-spacing="0.2">Bass. Harmonics. Space.</text>
-    <g fill="none" stroke="#d5dfe9">
+    <rect x="52" y="51" width="32" height="4" rx="2" fill="#1b1b1d"/>
+    <text x="99" y="59" fill="#5c5c61" font-size="12" font-weight="600" letter-spacing="2.1">OPEN-SOURCE AUDIO · macOS</text>
+    <text x="48" y="145" fill="#111113" font-size="66" font-weight="750" letter-spacing="-2.8">TimbreDock</text>
+    <text x="52" y="192" fill="#5c5c61" font-size="26" letter-spacing="0.2">Bass. Harmonics. Space.</text>
+    <g fill="none" stroke="#bdbdc1">
       <rect x="52" y="238" width="100" height="30" rx="15"/>
       <rect x="162" y="238" width="148" height="30" rx="15"/>
       <rect x="320" y="238" width="156" height="30" rx="15"/>
     </g>
-    <g fill="#50667c" font-size="11" font-weight="600" letter-spacing="1.1" text-anchor="middle">
-      <text x="102" y="258">CIRCUIT</text><text x="236" y="258">HIGHEXCITER</text><text x="398" y="258">SPATIAL STAGE</text>
+    <g fill="#38383c" font-size="11" font-weight="600" letter-spacing="1.1" text-anchor="middle">
+      <text x="102" y="258">BASS BOOST</text><text x="236" y="258">HARMONICS</text><text x="398" y="258">SPATIAL AUDIO</text>
     </g>
     <g transform="translate(725 33)">
-      <rect width="421" height="254" rx="18" fill="#eaf0f6"/>
-      <g fill="none" stroke="#dce5ed" stroke-width="1">
+      <rect width="421" height="254" rx="18" fill="#ededee"/>
+      <g fill="none" stroke="#d0d0d3" stroke-width="1">
         <path d="M40 73H381 M40 111H381 M40 149H381 M40 187H381 M88 43V211 M149 43V211 M210 43V211 M271 43V211 M332 43V211"/>
         <ellipse cx="210" cy="158" rx="123" ry="50"/><ellipse cx="210" cy="158" rx="77" ry="31"/>
       </g>
-      <path d="M100 72L210 173L321 72" fill="none" stroke="#176f87" stroke-width="2.5"/>
-      <path d="M100 72H321" fill="none" stroke="#a96910" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.65"/>
-      <g fill="#eaf0f6" stroke="#a96910" stroke-width="2"><rect x="85" y="48" width="30" height="45" rx="8"/><rect x="306" y="48" width="30" height="45" rx="8"/></g>
-      <g fill="#a96910"><circle cx="100" cy="69" r="6"/><circle cx="321" cy="69" r="6"/></g>
-      <circle cx="210" cy="173" r="20" fill="#eaf0f6" stroke="#176f87" stroke-width="2"/>
-      <path d="M201 176V171a9 9 0 0 1 18 0v5 M201 175V181 M219 175V181" fill="none" stroke="#176f87" stroke-width="3" stroke-linecap="round"/>
-      <g fill="#50667c" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="1.5"><text x="100" y="35">L</text><text x="321" y="35">R</text><text x="210" y="230">SHAPE YOUR LISTENING SPACE</text></g>
+      <path d="M100 72L210 173" fill="none" stroke="#238b7e" stroke-width="2.5"/>
+      <path d="M321 72L210 173" fill="none" stroke="#bd645b" stroke-width="2.5"/>
+      <path d="M100 72H321" fill="none" stroke="#88888d" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.7"/>
+      <rect x="85" y="48" width="30" height="45" rx="8" fill="#ededee" stroke="#238b7e" stroke-width="2"/>
+      <rect x="306" y="48" width="30" height="45" rx="8" fill="#ededee" stroke="#bd645b" stroke-width="2"/>
+      <circle cx="100" cy="69" r="6" fill="#238b7e"/><circle cx="321" cy="69" r="6" fill="#bd645b"/>
+      <circle cx="210" cy="173" r="20" fill="#ededee" stroke="#785eb1" stroke-width="2"/>
+      <path d="M201 176V171a9 9 0 0 1 18 0v5 M201 175V181 M219 175V181" fill="none" stroke="#785eb1" stroke-width="3" stroke-linecap="round"/>
+      <g fill="#5c5c61" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="1.5"><text x="100" y="35">L</text><text x="321" y="35">R</text><text x="210" y="230">SHAPE YOUR LISTENING SPACE</text></g>
     </g>
   </g>
 </svg>

@@ -21,6 +21,7 @@ scratch.mkdir(parents=True, mode=0o700)
 test = Path(__file__).resolve().parent
 root = test.parents[2]
 source = root / 'SystemAudioProcessor/Sources/SystemAudioProcessor/CaptureSessionLease.swift'
+localization = root / 'SystemAudioProcessor/Sources/SystemAudioProcessor/AppLocalization.swift'
 binary = scratch / 'LeaseChecks'
 commands = []
 checks = []
@@ -82,9 +83,9 @@ def finish(child, expected):
     save()
 
 try:
-    run(['swiftc', '-swift-version', '6', '-g', '-O', source, test / 'main.swift', '-o', binary], 'build')
+    run(['swiftc', '-swift-version', '6', '-g', '-O', source, localization, test / 'main.swift', '-o', binary], 'build')
     (scratch / 'source-hashes.json').write_text(json.dumps({str(p): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in [source, test / 'main.swift', Path(__file__).resolve()]}, indent=2) + '\n')
+        for p in [source, localization, test / 'main.swift', Path(__file__).resolve()]}, indent=2) + '\n')
     (scratch / 'binary.sha256').write_text(hashlib.sha256(binary.read_bytes()).hexdigest() + '\n')
     directory = scratch / 'shared'
     run([binary, 'same-pid', directory], 'same-pid')

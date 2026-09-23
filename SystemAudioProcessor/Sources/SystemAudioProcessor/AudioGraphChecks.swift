@@ -192,8 +192,15 @@ final class GraphCheckIO: AudioGraphIO, @unchecked Sendable {
     // Float input. This exercises gate -> handleInput -> DSP -> conditioning ->
     // ring. It is scheduled by a deterministic manager-side test clock.
     func capture(_ frames: Int, sample: Float = 0.125) {
+        capture(interleaved: [Float](repeating: sample, count: frames * 2))
+    }
+
+    /// Deterministic non-constant input for end-to-end spectral/model checks.
+    func capture(interleaved inputSamples: [Float]) {
+        precondition(inputSamples.count % 2 == 0)
         guard captureRunning, let callback, let clientData, let device = registeredDevice else { return }
-        var samples = [Float](repeating: sample, count: frames * 2)
+        let frames = inputSamples.count / 2
+        var samples = inputSamples
         samples.withUnsafeMutableBufferPointer { data in
             var input = AudioBufferList(mNumberBuffers: 1,
                 mBuffers: AudioBuffer(mNumberChannels: 2, mDataByteSize: UInt32(data.count * 4), mData: data.baseAddress!))
@@ -458,7 +465,7 @@ enum AudioGraphChecks {
             let failure = try expectFailure { try f.access.transition(96_000) }
             try expect(failure.recovered, "\(phase) late failure rollback recovers")
             let cause = String(describing: failure.cause)
-            try expect(cause.contains(phase.contains("Flow") ? "흐름" : phase == "fadeIn" ? "페이드인" : "페이드아웃"), "actual \(phase) timeout predicate")
+            try expect(cause.contains(L10n.string(phase.contains("Flow") ? "runtime.transition.flowTimeout" : phase == "fadeIn" ? "runtime.transition.fadeInTimeout" : "runtime.transition.fadeOutTimeout")), "actual \(phase) timeout predicate")
             try assertActive(f, rate: 48_000, ratio: 1)
             // Two 0.9 s confirmation waits plus the actual failed phase and
             // successful rollback fades fit below this complete-transaction cap.

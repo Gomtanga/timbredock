@@ -31,12 +31,12 @@ vertex SpectrumVertexOut spectrumVertex(
     const float barCount = max(uniforms.viewportAndCount.z, 1.0);
     const float topPadding = uniforms.layout.x;
     const float bottomPadding = uniforms.layout.y;
-    const float gap = uniforms.layout.z;
-    const float usableWidth = max(width - gap * (barCount - 1.0), barCount);
-    const float barWidth = max(usableWidth / barCount, 1.0);
+    const float gap = min(max(uniforms.layout.z, 0.0), width / barCount * 0.35);
+    const float usableWidth = max(width - gap * (barCount - 1.0), 0.0);
+    const float barWidth = usableWidth / barCount;
     const float amplitude = clamp(amplitudes[instanceID], 0.0, 1.0);
     const float availableHeight = max(height - topPadding - bottomPadding, 1.0);
-    const float barHeight = max(amplitude * availableHeight, 1.0);
+    const float barHeight = amplitude * availableHeight;
     const float2 corner = corners[vertexID];
     const float xPixels = float(instanceID) * (barWidth + gap) + corner.x * barWidth;
     const float yPixels = bottomPadding + corner.y * barHeight;
@@ -53,7 +53,7 @@ vertex SpectrumVertexOut spectrumVertex(
 }
 
 fragment float4 spectrumFragment(SpectrumVertexOut input [[stage_in]]) {
-    const float3 bottomColor = float3(0.20, 0.67, 0.82);
-    const float3 topColor = float3(0.36, 0.84, 0.94);
+    const float3 bottomColor = float3(0.38, 0.38, 0.38);
+    const float3 topColor = float3(0.96, 0.96, 0.96);
     return float4(mix(bottomColor, topColor, input.heightMix), 0.92);
 }

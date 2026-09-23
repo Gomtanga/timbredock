@@ -2,6 +2,12 @@ import AudioRingBufferC
 import Foundation
 import LowEndSupport
 
+struct ToneControlReceipt {
+    let model: Settings.DSPModel
+    let intensity: Double
+    let body: Double
+}
+
 final class LockFreeControlEventQueue {
     private let handle: OpaquePointer
     private var sampleRate: Float
@@ -28,6 +34,7 @@ final class LockFreeControlEventQueue {
         drain()
         self.sampleRate = sampleRate
         pendingDSP = nil; pendingSpatial = nil; pendingConditioning = nil
+        acknowledgeDSP(0)
     }
 
     func pushDSP(intensity: Float,
@@ -45,6 +52,9 @@ final class LockFreeControlEventQueue {
             dspModel: dspModel,
             exciterOversamplingMode: exciterOversamplingMode
         )
+        // DSP events use their otherwise-unused revision word as a diagnostic
+        // payload. Quantize on the manager, never inside the callback.
+        event.revision = Self.receiptWord(for: event.dsp)
         pendingDSP = event
         flushPending()
     }
@@ -80,6 +90,25 @@ final class LockFreeControlEventQueue {
         if var event = pendingDSP, withUnsafePointer(to: &event, { lc_control_event_queue_push(handle, $0) }) != 0 { pendingDSP = nil }
         if var event = pendingSpatial, withUnsafePointer(to: &event, { lc_control_event_queue_push(handle, $0) }) != 0 { pendingSpatial = nil }
         if var event = pendingConditioning, withUnsafePointer(to: &event, { lc_control_event_queue_push(handle, $0) }) != 0 { pendingConditioning = nil }
+    }
+
+    static func receiptWord(for settings: LCDSPSettings) -> UInt64 {
+        func quantize(_ value: Float) -> UInt64 {
+            value.isFinite ? UInt64((min(max(Double(value), 0), 1) * 10_000).rounded()) : 0
+        }
+        return (UInt64(1) << 63) | (UInt64(settings.dspModel) << 32)
+            | (quantize(settings.intensity) << 16) | quantize(settings.body)
+    }
+
+    func acknowledgeDSP(_ receipt: UInt64) { lc_control_event_queue_publish_dsp_receipt(handle, receipt) }
+    var receivedTone: ToneControlReceipt? {
+        let word = lc_control_event_queue_dsp_receipt(handle)
+        guard word >> 63 == 1 else { return nil }
+        let modelID = (word >> 32) & 0xff
+        guard modelID <= 2 else { return nil }
+        return ToneControlReceipt(model: modelID == 0 ? .clean : modelID == 1 ? .circuit : .highExciter,
+            intensity: Double((word >> 16) & 0xffff) / 100,
+            body: Double(word & 0xffff) / 100)
     }
 
     func acknowledgeSpatial(_ revision: UInt64) { lc_control_event_queue_acknowledge(handle, revision) }

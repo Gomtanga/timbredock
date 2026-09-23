@@ -19,13 +19,13 @@ final class CaptureSessionLease: @unchecked Sendable {
         var description: String {
             switch self {
             case .alreadyOwned:
-                return "이미 실행 중인 LowEnd 오디오 처리 세션이 있습니다. 다른 LowEnd 앱에서 처리를 중지한 뒤 다시 적용하세요."
+                return L10n.string("runtime.lease.inUse")
             case .abandoned:
-                return "오디오 정리가 끝나지 않아 잠금을 유지하고 있습니다. 앱을 완전히 종료한 뒤 다시 실행하세요."
+                return L10n.string("runtime.lease.retained")
             case .unsafePath:
-                return "오디오 처리 잠금 경로의 소유자·형식·권한을 확인하지 못했습니다. 중복 처리를 막기 위해 시작하지 않았습니다."
+                return L10n.string("runtime.lease.unsafe")
             case .system(let operation, let code):
-                return "오디오 처리 잠금을 준비하지 못했습니다 (\(operation), 오류 \(code)). 중복 처리를 막기 위해 시작하지 않았습니다."
+                return L10n.format("runtime.lease.system", operation, code)
             }
         }
         var errorDescription: String? { description }
@@ -57,22 +57,22 @@ final class CaptureSessionLease: @unchecked Sendable {
         defer { Darwin.close(directory) }
         let fd = Darwin.openat(directory, Self.filename,
             O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, mode_t(0o600))
-        guard fd >= 0 else { throw Failure.system("잠금 파일 열기", errno) }
+        guard fd >= 0 else { throw Failure.system(L10n.string("runtime.lease.openFile"), errno) }
         var acquired = false
         defer { if !acquired { Darwin.close(fd) } }
         var info = stat()
-        guard Darwin.fstat(fd, &info) == 0 else { throw Failure.system("잠금 파일 확인", errno) }
+        guard Darwin.fstat(fd, &info) == 0 else { throw Failure.system(L10n.string("runtime.lease.statFile"), errno) }
         guard Self.validFile(info) else { throw Failure.unsafePath }
         guard captureSessionFlock(fd, LOCK_EX | LOCK_NB) == 0 else {
             let code = errno
             if code == EWOULDBLOCK || code == EAGAIN { throw Failure.alreadyOwned }
-            throw Failure.system("독점 잠금", code)
+            throw Failure.system(L10n.string("runtime.lease.lock"), code)
         }
         // Detect replacement between open and acquisition without unlinking or
         // replacing the persistent inode used by other cooperating processes.
         var linked = stat()
         guard Darwin.fstatat(directory, Self.filename, &linked, AT_SYMLINK_NOFOLLOW) == 0 else {
-            throw Failure.system("잠금 파일 연결 확인", errno)
+            throw Failure.system(L10n.string("runtime.lease.checkLink"), errno)
         }
         guard Self.validFile(linked), linked.st_dev == info.st_dev, linked.st_ino == info.st_ino else {
             throw Failure.unsafePath
@@ -111,7 +111,7 @@ final class CaptureSessionLease: @unchecked Sendable {
 
     private static func validateDirectory(_ fd: Int32, privateDirectory: Bool) throws {
         var info = stat()
-        guard Darwin.fstat(fd, &info) == 0 else { throw Failure.system("잠금 디렉터리 확인", errno) }
+        guard Darwin.fstat(fd, &info) == 0 else { throw Failure.system(L10n.string("runtime.lease.statDirectory"), errno) }
         guard info.st_uid == geteuid(), info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR),
               (privateDirectory ? info.st_mode & mode_t(0o7777) == mode_t(0o700)
                                 : info.st_mode & mode_t(0o022) == 0) else {
@@ -124,10 +124,10 @@ final class CaptureSessionLease: @unchecked Sendable {
             guard testDirectory.isFileURL, testDirectory.path.hasPrefix("/") else { throw Failure.unsafePath }
             let path = testDirectory.path
             if Darwin.mkdir(path, mode_t(0o700)) != 0, errno != EEXIST {
-                throw Failure.system("검사 잠금 디렉터리 생성", errno)
+                throw Failure.system(L10n.string("runtime.lease.testCreate"), errno)
             }
             let fd = Darwin.open(path, Self.directoryFlags)
-            guard fd >= 0 else { throw Failure.system("검사 잠금 디렉터리 열기", errno) }
+            guard fd >= 0 else { throw Failure.system(L10n.string("runtime.lease.testOpen"), errno) }
             do { try Self.validateDirectory(fd, privateDirectory: true); return fd }
             catch { Darwin.close(fd); throw error }
         }
@@ -137,15 +137,15 @@ final class CaptureSessionLease: @unchecked Sendable {
         // so symbolic-link directories cannot redirect the lease namespace.
         let home = try Self.accountHomeDirectory()
         var fd = Darwin.open(home, Self.directoryFlags)
-        guard fd >= 0 else { throw Failure.system("사용자 디렉터리 열기", errno) }
+        guard fd >= 0 else { throw Failure.system(L10n.string("runtime.lease.homeOpen"), errno) }
         do {
             try Self.validateDirectory(fd, privateDirectory: false)
             for component in ["Library", "Application Support", "LowEndCircuitCapture"] {
                 if Darwin.mkdirat(fd, component, mode_t(0o700)) != 0, errno != EEXIST {
-                    throw Failure.system("잠금 디렉터리 생성", errno)
+                    throw Failure.system(L10n.string("runtime.lease.createDirectory"), errno)
                 }
                 let next = Darwin.openat(fd, component, Self.directoryFlags)
-                guard next >= 0 else { throw Failure.system("잠금 디렉터리 열기", errno) }
+                guard next >= 0 else { throw Failure.system(L10n.string("runtime.lease.openDirectory"), errno) }
                 Darwin.close(fd); fd = next
                 try Self.validateDirectory(fd, privateDirectory: component == "LowEndCircuitCapture")
             }
@@ -167,10 +167,10 @@ final class CaptureSessionLease: @unchecked Sendable {
             }
             if code == ERANGE { size *= 2; continue }
             guard code == 0, let home, home.hasPrefix("/") else {
-                throw Failure.system("사용자 홈 확인", code == 0 ? ENOENT : code)
+                throw Failure.system(L10n.string("runtime.lease.homeLookup"), code == 0 ? ENOENT : code)
             }
             return home
         }
-        throw Failure.system("사용자 홈 확인", ERANGE)
+        throw Failure.system(L10n.string("runtime.lease.homeLookup"), ERANGE)
     }
 }

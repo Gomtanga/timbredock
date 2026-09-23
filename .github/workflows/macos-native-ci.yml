@@ -8,12 +8,31 @@ on:
 jobs:
   native-and-core:
     runs-on: macos-15
+    # The macOS 15 image's default toolchain is Xcode 16.4 (macOS 15.5 SDK),
+    # which lacks NSGlassEffectView/NSGlassEffectContainerView and .glass.
+    # Select the installed Xcode 26.3 toolchain (macOS 26.2 SDK) explicitly so
+    # the Liquid Glass sources compile, while the macos-15 runner keeps
+    # exercising the runtime fallback path.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Log selected toolchain and SDK versions
+        run: |
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+          swift --version
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR"
+
       - name: Check staged bundle replacement failure handling
         run: python3 scripts/check-native-build-script.py
+
+      - name: Check TimbreDock packaging and bilingual resources
+        run: |
+          python3 scripts/check-native-app-packaging.py
+          python3 scripts/check-localizations.py
 
       - name: Run Swift regression checks
         run: swift run --package-path SystemAudioProcessor -c debug LowEndSupportChecks
@@ -32,6 +51,9 @@ jobs:
         env:
           LOWEND_BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/build-native-system-audio-app.sh
+
+      - name: Verify Release UI and macOS 15 fallback layout
+        run: build/LowEndCircuit_artefacts/Release/NativeSystemAudio/TimbreDock.app/Contents/MacOS/TimbreDock --ui-self-test
 
       - name: Configure portable Core tests
         run: cmake -S Source/Core -B build/core-tests -DCMAKE_BUILD_TYPE=Release -DLOWEND_CORE_BUILD_TESTING=ON

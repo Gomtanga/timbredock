@@ -31,6 +31,31 @@ struct SpatialSceneState: Equatable {
     }
 }
 
+/// Object and source-path colors stay identical in the planar and 3D scene.
+/// Text labels and solid/dashed paths retain meaning without color perception.
+private enum SpatialPalette {
+    static let left = NSColor(srgbRed: 0.31, green: 0.88, blue: 0.76, alpha: 1)
+    static let right = NSColor(srgbRed: 1, green: 0.57, blue: 0.49, alpha: 1)
+    static let listener = NSColor(srgbRed: 0.71, green: 0.63, blue: 1, alpha: 1)
+    static let background = NSColor(white: 0.027, alpha: 1)
+    static var accent: NSColor { NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? left : NSColor(srgbRed: 0, green: 0.43, blue: 0.36, alpha: 1)
+    } }
+    static func color(for selection: SpatialSceneState.Selection) -> NSColor {
+        switch selection {
+        case .leftSpeaker: return left
+        case .rightSpeaker: return right
+        case .listener, .none: return listener
+        }
+    }
+    static func pathText(leftChannel: Bool) -> NSColor { NSColor(name: nil) { appearance in
+        if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua { return leftChannel ? left : right }
+        return leftChannel ? NSColor(srgbRed: 0, green: 0.43, blue: 0.36, alpha: 1)
+            : NSColor(srgbRed: 0.70, green: 0.24, blue: 0.17, alpha: 1)
+    } }
+}
+
 @MainActor
 final class SpatialControlModel: ObservableObject {
     @Published private(set) var settings: SpatialSettings
@@ -96,7 +121,7 @@ final class SpatialControlModel: ObservableObject {
         let values = [newSettings.listenerX, newSettings.listenerZ,
                       newSettings.speakerWidth, newSettings.amount]
         guard values.allSatisfy(\.isFinite) else {
-            validationMessage = "유한한 숫자를 입력해 주세요. 직전 값을 유지했습니다."
+            validationMessage = L10n.string("spatial.validation.finite")
             if final { commit() }
             return false
         }
@@ -221,22 +246,25 @@ struct SpatialPageView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("공간 음향").font(.system(size: 24, weight: .bold))
-                            Text("청취 위치와 두 가상 스피커 사이의 폭을 조절합니다.")
-                                .font(.system(size: 12)).foregroundStyle(.secondary)
+                            HStack {
+                                Text(L10n.string("spatial.page.title")).font(.system(size: 26, weight: .bold))
+                                Spacer()
+                                ContextualHelp(text: L10n.string("spatial.page.subtitle"), title: L10n.string("spatial.page.title"), onFocus: { reveal("spatial.toolbar") })
+                                    .frame(width: 28, height: 28)
+                            }
                         }
                         toolbar.id("spatial.toolbar")
-                        if page.size.width >= 900 {
+                        if page.size.width >= 860 {
                             HStack(alignment: .top, spacing: 16) {
-                                stage(height: max(360, min(620, page.size.height - 155)))
+                                stage(height: max(360, min(620, page.size.height - 184)))
                                 inspector.frame(width: 290)
                             }
                         } else {
-                            stage(height: max(320, min(440, (page.size.width - 32) * 0.68)))
+                            stage(height: max(320, min(440, (page.size.width - 56) * 0.68)))
                             inspector
                         }
                     }
-                    .padding(16)
+                    .padding(28)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .onChange(of: revealRevision) { _, _ in
@@ -247,8 +275,9 @@ struct SpatialPageView: View {
                 }
             }
         }
-        .foregroundStyle(Color.white)
-        .background(Color(red: 0.08, green: 0.09, blue: 0.11))
+        .foregroundStyle(Color.primary)
+        .tint(Color(nsColor: SpatialPalette.accent))
+        .background(Color(nsColor: GlassDesign.surface))
         .onAppear { spatialModel.onChange = onSpatialChange }
         .onDisappear { spatialModel.flushPending() }
         .onChange(of: pageFocus) { _, focused in
@@ -267,38 +296,46 @@ struct SpatialPageView: View {
     private var toolbar: some View {
         VStack(spacing: 10) {
             HStack {
-                Picker("보기", selection: $spatialModel.sceneState.viewMode) {
-                    Text("평면").tag(SpatialSceneState.ViewMode.planar)
-                    Text("입체").tag(SpatialSceneState.ViewMode.perspective)
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 160)
-                    .focused($pageFocus, equals: .viewMode)
+                StudioChoice(items: [(SpatialSceneState.ViewMode.planar, L10n.string("spatial.view.planar")),
+                                     (.perspective, L10n.string("spatial.view.perspective"))],
+                             selection: $spatialModel.sceneState.viewMode, label: L10n.string("spatial.view.label"),
+                             onFocus: { reveal("spatial.toolbar") })
+                    .frame(width: 176, height: 36)
                 Spacer(minLength: 12)
-                Toggle(spatialModel.settings.enabled ? "공간 음향 ON" : "공간 음향 OFF",
+                Toggle(spatialModel.settings.enabled ? L10n.string("spatial.enabledOn")
+                                                     : L10n.string("spatial.enabledOff"),
                        isOn: Binding(get: { spatialModel.settings.enabled },
                                      set: { value in spatialModel.mutate(final: true) { $0.enabled = value } }))
                     .toggleStyle(.checkbox).font(.system(size: 12, weight: .semibold))
                     .focused($pageFocus, equals: .enabled)
             }
             HStack(spacing: 8) {
-                toolButton("청취자 원위치", symbol: "location.fill.viewfinder") { spatialModel.resetListener() }
+                toolButton(L10n.string("spatial.resetListener"), symbol: "location.fill.viewfinder") { spatialModel.resetListener() }
                     .focused($pageFocus, equals: .resetListener)
-                toolButton("Spatial 전체 초기화", symbol: "arrow.counterclockwise") { spatialModel.resetSpatial() }
+                toolButton(L10n.string("spatial.resetAll"), symbol: "arrow.counterclockwise") { spatialModel.resetSpatial() }
                     .focused($pageFocus, equals: .resetSpatial)
-                toolButton("무대 전체 보기", symbol: "arrow.up.left.and.arrow.down.right") {
+                toolButton(L10n.string("spatial.fitCamera"), symbol: "arrow.up.left.and.arrow.down.right") {
                     spatialModel.sceneState.fitCamera()
                 }.focused($pageFocus, equals: .fit)
                 Spacer(minLength: 8)
-                Toggle("격자", isOn: $spatialModel.sceneState.showGrid).toggleStyle(.checkbox)
+                Toggle(L10n.string("spatial.grid"), isOn: $spatialModel.sceneState.showGrid).toggleStyle(.checkbox)
                     .focused($pageFocus, equals: .grid)
-                Toggle("경로", isOn: $spatialModel.sceneState.showPaths).toggleStyle(.checkbox)
+                Toggle(L10n.string("spatial.paths"), isOn: $spatialModel.sceneState.showPaths).toggleStyle(.checkbox)
                     .focused($pageFocus, equals: .paths)
             }.font(.system(size: 12))
         }
     }
 
     private func toolButton(_ label: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: symbol).frame(width: 28, height: 28) }
-            .buttonStyle(.bordered).help(label).accessibilityLabel(label)
+        Group {
+            if #available(macOS 26.0, *) {
+                Button(action: action) { Image(systemName: symbol).frame(width: 28, height: 28) }
+                    .buttonStyle(.glass)
+            } else {
+                Button(action: action) { Image(systemName: symbol).frame(width: 28, height: 28) }
+                    .buttonStyle(.bordered)
+            }
+        }.tint(Color.primary).help(label).accessibilityLabel(label)
     }
 
     private func stage(height: CGFloat) -> some View {
@@ -306,50 +343,59 @@ struct SpatialPageView: View {
             SpatialStageRepresentable(model: spatialModel, onChange: onSpatialChange,
                                       onFocus: { reveal("spatial.stage") })
                 .frame(maxWidth: .infinity).frame(height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
                 .id("spatial.stage")
-            Text(spatialModel.sceneState.viewMode == .planar
-                 ? "바닥 클릭: 청취자 이동 · 스피커 드래그: 폭 조절 · 방향키: 0.01 m · Shift: 0.10 m"
-                 : "Option+드래그: 회전 · 가운데 버튼: 이동 · 스크롤: 확대 · 바닥 드래그: 위치 조절")
-                .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                ContextualHelp(text: spatialModel.sceneState.viewMode == .planar
+                    ? L10n.string("spatial.stageHint.planar") : L10n.string("spatial.stageHint.perspective"),
+                    title: L10n.string("spatial.view.label"), onFocus: { reveal("spatial.stageHelp") })
+                    .id("spatial.stageHelp")
+                    .frame(width: 28, height: 28)
+            }
         }
     }
 
     private var inspector: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("조절 대상").font(.system(size: 14, weight: .semibold))
-            Picker("조절 대상", selection: $spatialModel.sceneState.selection) {
-                Text("전체").tag(SpatialSceneState.Selection.none)
-                Text("청취자").tag(SpatialSceneState.Selection.listener)
-                Text("L").tag(SpatialSceneState.Selection.leftSpeaker)
-                Text("R").tag(SpatialSceneState.Selection.rightSpeaker)
-            }.pickerStyle(.segmented).labelsHidden().accessibilityLabel("공간 조절 대상 선택")
-                .focused($pageFocus, equals: .selection).id("spatial.selection")
+            Text(L10n.string("spatial.inspector.target")).font(.system(size: 14, weight: .semibold))
+            StudioChoice(items: [(SpatialSceneState.Selection.none, L10n.string("spatial.selection.none")),
+                                 (.listener, L10n.string("spatial.selection.listener")),
+                                 (.leftSpeaker, L10n.string("spatial.selection.left")),
+                                 (.rightSpeaker, L10n.string("spatial.selection.right"))],
+                         selection: $spatialModel.sceneState.selection,
+                         label: L10n.string("spatial.selection.accessibilityLabel"), compact: true,
+                         onFocus: { reveal("spatial.selection") })
+                .frame(height: 36).id("spatial.selection")
             switch spatialModel.sceneState.selection {
             case .listener:
-                valueControl("좌우 위치 X", key: \.listenerX, range: -3...3, unit: "m")
-                valueControl("앞뒤 위치 Z", key: \.listenerZ, range: -2.8...2.8, unit: "m")
-                Text("+X는 오른쪽, +Z는 스피커 쪽입니다.").font(.system(size: 11)).foregroundStyle(.secondary)
-                Button("청취자 원위치") { spatialModel.resetListener() }.buttonStyle(.bordered)
+                valueControl(L10n.string("spatial.value.listenerX"), id: "listenerX", key: \.listenerX, range: -3...3, unit: L10n.string("spatial.unit.meters"))
+                valueControl(L10n.string("spatial.value.listenerZ"), id: "listenerZ", key: \.listenerZ, range: -2.8...2.8, unit: L10n.string("spatial.unit.meters"))
+                ContextualHelp(text: L10n.string("spatial.inspector.axisHint"), title: L10n.string("spatial.inspector.target"), onFocus: { reveal("spatial.inspectorHelp") })
+                    .id("spatial.inspectorHelp")
+                    .frame(width: 28, height: 28)
+                Button(L10n.string("spatial.resetListener")) { spatialModel.resetListener() }.buttonStyle(.bordered)
                     .focused($pageFocus, equals: .inspectorReset).id("spatial.inspectorReset")
             case .leftSpeaker, .rightSpeaker:
-                valueControl("가상 스피커 폭", key: \.speakerWidth, range: 0.6...3, unit: "m")
-                Text("두 스피커는 중앙에 대칭으로 배치됩니다. 전방 위치 Z는 1.80 m로 고정됩니다.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                valueControl(L10n.string("spatial.value.speakerWidth"), id: "speakerWidth", key: \.speakerWidth, range: 0.6...3, unit: L10n.string("spatial.unit.meters"))
+                ContextualHelp(text: L10n.string("spatial.inspector.widthHint"), title: L10n.string("spatial.inspector.target"), onFocus: { reveal("spatial.inspectorHelp") })
+                    .id("spatial.inspectorHelp")
+                    .frame(width: 28, height: 28)
             case .none:
-                Text("청취자 또는 L/R 스피커를 선택하면 좌표와 폭을 정밀하게 입력할 수 있습니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                ContextualHelp(text: L10n.string("spatial.inspector.noneHint"), title: L10n.string("spatial.inspector.target"), onFocus: { reveal("spatial.inspectorHelp") })
+                    .id("spatial.inspectorHelp")
+                    .frame(width: 28, height: 28)
             }
             Divider()
-            valueControl("공간 처리량", key: \.amount, range: 0...100, unit: "%")
-            Text(!spatialModel.settings.enabled ? "OFF · 원본 신호를 출력합니다. 배치는 유지됩니다."
-                 : spatialModel.settings.amount == 0 ? "0% · 원본 신호만 출력합니다."
-                 : "ON · 원본과 거리·상대 지연·크로스피드 처리 신호를 혼합합니다.")
+            valueControl(L10n.string("spatial.value.amount"), id: "amount", key: \.amount, range: 0...100, unit: "%")
+            Text(!spatialModel.settings.enabled ? L10n.string("spatial.amountHint.off")
+                 : spatialModel.settings.amount == 0 ? L10n.string("spatial.amountHint.zero")
+                 : L10n.string("spatial.amountHint.on"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             if let message = spatialModel.validationMessage {
                 Text(message).font(.system(size: 11)).foregroundStyle(.orange)
             }
-            DisclosureGroup("경로와 DSP 목표값", isExpanded: $spatialModel.sceneState.showDetails) {
+            DisclosureGroup(L10n.string("spatial.details.title"), isExpanded: $spatialModel.sceneState.showDetails) {
                 geometryInspector.padding(.top, 8)
             }
                 .font(.system(size: 12, weight: .semibold))
@@ -357,57 +403,60 @@ struct SpatialPageView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.12, green: 0.14, blue: 0.17))
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .background(Color(nsColor: GlassDesign.well))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func valueControl(_ title: String, key: WritableKeyPath<SpatialSettings, Float>,
-                              range: ClosedRange<Double>, unit: String) -> some View {
+    private func valueControl(_ title: String, id: String, key: WritableKeyPath<SpatialSettings, Float>,
+    range: ClosedRange<Double>, unit: String) -> some View {
         SpatialValueControl(title: title, value: Binding(
             get: { Double(spatialModel.settings[keyPath: key]) },
             set: { value in spatialModel.mutate { $0[keyPath: key] = Float(value) } }),
-            range: range, unit: unit, commit: { spatialModel.commit() }, onFocus: { reveal(title) })
-            .id(title)
+            range: range, unit: unit, commit: { spatialModel.commit() }, onFocus: { reveal("spatial.value.\(id)") })
+            .id("spatial.value.\(id)")
     }
 
     @ViewBuilder private var geometryInspector: some View {
         if let snapshot = spatialModel.preview {
             let raw = snapshot.raw
             VStack(alignment: .leading, spacing: 8) {
-                Text(spatialModel.hasPendingEdit ? "목표값 전달 대기"
-                     : spatialModel.submittedEditRevision == 0 ? "목표값 미리보기" : "목표값 전달 요청 완료")
+                Text(spatialModel.hasPendingEdit ? L10n.string("spatial.details.pending")
+                     : spatialModel.submittedEditRevision == 0 ? L10n.string("spatial.details.preview")
+                     : L10n.string("spatial.details.submitted"))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
-                Text(spatialModel.appliedStatusText ?? "장치 수신 상태는 아직 확인되지 않았습니다.")
+                Text(spatialModel.appliedStatusText ?? L10n.string("spatial.details.noDeviceStatus"))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
-                Text(String(format: "처리율 %.1f kHz · 최소 경로 기준 상대 지연", raw.sampleRate / 1000))
+                Text(L10n.format("spatial.details.rateRelativeDelay", raw.sampleRate / 1000))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
-                pathRow("LL 직접", raw.ll)
-                pathRow("LR 크로스", raw.lr)
-                pathRow("RL 크로스", raw.rl)
-                pathRow("RR 직접", raw.rr)
-                Text(String(format: "Crossfeed %.3f · 점선은 반사가 아닌 반대쪽 귀 경로입니다.", raw.crossfeed))
+                pathRow(L10n.string("spatial.path.ll"), raw.ll, leftChannel: true)
+                pathRow(L10n.string("spatial.path.lr"), raw.lr, leftChannel: true)
+                pathRow(L10n.string("spatial.path.rl"), raw.rl, leftChannel: false)
+                pathRow(L10n.string("spatial.path.rr"), raw.rr, leftChannel: false)
+                Text(L10n.format("spatial.details.crossfeed", raw.crossfeed))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
-                Text("gain은 wet 경로 계수입니다. 목표 수신·보간 중 실제 파형과 구분되며 최종 혼합에는 출력 trim과 포화 처리가 추가됩니다.")
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                ContextualHelp(text: L10n.string("spatial.details.gainNote"), title: L10n.string("spatial.details.title"), onFocus: { reveal("spatial.detailsHelp") })
+                    .id("spatial.detailsHelp")
+                    .frame(width: 28, height: 28)
             }
         } else {
-            Text("처리율을 확인하는 동안 경로 계산을 기다립니다.").font(.system(size: 11))
+            Text(L10n.string("spatial.details.waitingRate")).font(.system(size: 11))
         }
     }
 
-    private func pathRow(_ label: String, _ path: LCSpatialPathGeometry) -> some View {
+    private func pathRow(_ label: String, _ path: LCSpatialPathGeometry, leftChannel: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.system(size: 11, weight: .semibold))
-            Text(String(format: "거리 %.3f m · gain %.3f · %.3f ms (%u samples)",
-                        path.rawDistanceMeters, path.gain, path.appliedDelayMs, path.appliedDelaySamples))
-                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
-            if path.rawDistanceMeters < path.effectiveDistanceMeters {
-                Text(String(format: "DSP 거리 하한 적용: %.3f m", path.effectiveDistanceMeters))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
-            }
-            if path.requestedDelaySamples != path.appliedDelaySamples {
-                Text("지연 버퍼 한계로 일부 지연이 제한됩니다.").font(.system(size: 10)).foregroundStyle(.orange)
-            }
+        Text(label).font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Color(nsColor: SpatialPalette.pathText(leftChannel: leftChannel)))
+        Text(L10n.format("spatial.pathRow.metrics", path.rawDistanceMeters, path.gain,
+                         path.appliedDelayMs, path.appliedDelaySamples))
+            .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+        if path.rawDistanceMeters < path.effectiveDistanceMeters {
+            Text(L10n.format("spatial.pathRow.distanceFloor", path.effectiveDistanceMeters))
+            .font(.system(size: 10)).foregroundStyle(.secondary)
+        }
+        if path.requestedDelaySamples != path.appliedDelaySamples {
+            Text(L10n.string("spatial.pathRow.delayLimited")).font(.system(size: 10)).foregroundStyle(.orange)
+        }
         }.accessibilityElement(children: .combine)
     }
 }
@@ -428,26 +477,28 @@ private struct SpatialValueControl: View {
     @FocusState private var controlFocus: ControlFocus?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 12, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
-                Text(title).font(.system(size: 12, weight: .semibold))
-                Spacer(minLength: 6)
                 TextField(title, text: Binding(get: { text }, set: {
                     guard text != $0 else { return }
                     text = $0
                     hasUncommittedText = true
                 }))
-                    .textFieldStyle(.roundedBorder).frame(width: 66)
-                    .multilineTextAlignment(.trailing).focused($editing)
-                    .onSubmit { finishText() }
-                    .accessibilityLabel("\(title), \(unit), \(range.lowerBound)부터 \(range.upperBound)")
+                .textFieldStyle(.roundedBorder).frame(width: 66)
+                .multilineTextAlignment(.trailing).focused($editing)
+                .onSubmit { finishText() }
+                .accessibilityLabel(L10n.format("spatial.control.range", title, unit,
+                                                String(range.lowerBound), String(range.upperBound)))
                 Text(unit).font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer(minLength: 6)
                 HStack(spacing: 2) {
                     Button { step(-1) } label: { Image(systemName: "minus").frame(width: 28, height: 28) }
-                        .disabled(value <= range.lowerBound).accessibilityLabel("\(title) 한 단계 감소")
+                        .disabled(value <= range.lowerBound).accessibilityLabel(L10n.format("spatial.control.decrease", title))
                         .focused($controlFocus, equals: .decrease)
                     Button { step(1) } label: { Image(systemName: "plus").frame(width: 28, height: 28) }
-                        .disabled(value >= range.upperBound).accessibilityLabel("\(title) 한 단계 증가")
+                        .disabled(value >= range.upperBound).accessibilityLabel(L10n.format("spatial.control.increase", title))
                         .focused($controlFocus, equals: .increase)
                 }.buttonStyle(.borderless).accessibilityElement(children: .contain)
             }
@@ -459,10 +510,10 @@ private struct SpatialValueControl: View {
                 value = newValue
                 text = String(format: unit == "%" ? "%.0f" : "%.2f", newValue)
             }), in: range, onEditingChanged: { active in if !active { commit() } })
-                .accessibilityLabel("\(title) 슬라이더, \(unit)")
-                .focused($controlFocus, equals: .slider)
+            .accessibilityLabel(L10n.format("spatial.control.slider", title, unit))
+            .focused($controlFocus, equals: .slider)
             if invalid {
-                Text("올바른 숫자를 입력해 주세요.").font(.system(size: 10)).foregroundStyle(.orange)
+                Text(L10n.string("spatial.control.invalid")).font(.system(size: 10)).foregroundStyle(.orange)
             }
         }
         .onAppear { refresh() }
@@ -528,7 +579,7 @@ enum SpatialFocusRevealPolicy {
 /// NSViewRepresentable descendants need a native first-responder hook because
 /// SwiftUI FocusState does not own their internal AppKit selection buttons.
 @MainActor
-private final class SpatialFocusButton: NSButton {
+private final class SpatialFocusButton: StudioButton {
     var onFocus: (() -> Void)?
     override func becomeFirstResponder() -> Bool {
         guard super.becomeFirstResponder() else { return false }
@@ -558,7 +609,8 @@ final class SpatialSelectionLeaderView: NSView {
         needsDisplay = true
     }
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.secondaryLabelColor.withAlphaComponent(0.8).setStroke()
+        // Neutral annotation leaders remain distinct from the colored DSP paths.
+        NSColor(white: 0.55, alpha: 0.8).setStroke()
         path.stroke()
     }
 }
@@ -580,10 +632,10 @@ final class SpatialStageView: SCNView {
     private let planarCamera = SCNNode()
     private let perspectiveCamera = SCNNode()
     private let pathNodes: [[SCNNode]] = (0..<4).map { path in (0..<(path == 0 || path == 3 ? 1 : 12)).map { _ in SCNNode() } }
-    private let listenerButton = SpatialFocusButton(title: "청취자", target: nil, action: nil)
-    private let leftButton = SpatialFocusButton(title: "L", target: nil, action: nil)
-    private let rightButton = SpatialFocusButton(title: "R", target: nil, action: nil)
-    private let frontLabel = NSTextField(labelWithString: "앞 +Z")
+    private let listenerButton = SpatialFocusButton(title: L10n.string("spatial.selection.listener"), target: nil, action: nil)
+    private let leftButton = SpatialFocusButton(title: L10n.string("spatial.selection.left"), target: nil, action: nil)
+    private let rightButton = SpatialFocusButton(title: L10n.string("spatial.selection.right"), target: nil, action: nil)
+    private let frontLabel = NSTextField(labelWithString: L10n.string("spatial.stage.front"))
     private let widthLabel = NSTextField(labelWithString: "")
     private let stateLabel = NSTextField(labelWithString: "")
     private let selectionCoordinates = NSTextField(labelWithString: "")
@@ -650,13 +702,13 @@ final class SpatialStageView: SCNView {
 
     private func setupScene() {
         scene = SCNScene()
-        backgroundColor = NSColor(calibratedRed: 0.065, green: 0.08, blue: 0.105, alpha: 1)
+        backgroundColor = SpatialPalette.background
         allowsCameraControl = false
         rendersContinuously = false
         isPlaying = false
         antialiasingMode = .multisampling4X
         setAccessibilityRole(.group)
-        setAccessibilityLabel("공간 무대. 청취자, 왼쪽 스피커, 오른쪽 스피커 선택 버튼과 Inspector로 편집할 수 있습니다.")
+        setAccessibilityLabel(L10n.string("spatial.stage.accessibilityLabel"))
         guard let root = scene?.rootNode else { return }
         planarCamera.camera = SCNCamera()
         planarCamera.camera?.usesOrthographicProjection = true
@@ -673,11 +725,11 @@ final class SpatialStageView: SCNView {
         root.addChildNode(gridNode)
 
         let floor = SCNNode(geometry: SCNPlane(width: 6, height: 5.6))
-        floor.geometry?.materials = [material(NSColor(calibratedWhite: 0.115, alpha: 1))]
+        floor.geometry?.materials = [material(NSColor(white: 0.055, alpha: 1))]
         floor.eulerAngles.x = -.pi / 2
         floor.position.y = -0.025
         root.addChildNode(floor)
-        let gridMaterial = material(NSColor(calibratedWhite: 0.3, alpha: 0.65))
+        let gridMaterial = material(NSColor(white: 0.22, alpha: 0.65))
         for x in stride(from: Float(-3), through: 3, by: 0.5) {
             let node = line(material: gridMaterial, radius: 0.005)
             connect(node, from: Self.scenePoint(x: x, z: -2.8), to: Self.scenePoint(x: x, z: 2.8))
@@ -698,30 +750,31 @@ final class SpatialStageView: SCNView {
             connect(edge, from: Self.scenePoint(x: x, z: -2.8), to: Self.scenePoint(x: x, z: 2.8))
             root.addChildNode(edge)
         }
-        let axisX = line(material: material(.systemRed), radius: 0.01)
-        let axisZ = line(material: material(.systemBlue), radius: 0.01)
+        let axisX = line(material: material(NSColor(white: 0.30, alpha: 1)), radius: 0.01)
+        let axisZ = line(material: material(NSColor(white: 0.38, alpha: 1)), radius: 0.01)
         connect(axisX, from: Self.scenePoint(x: -3, z: 0), to: Self.scenePoint(x: 3, z: 0))
         connect(axisZ, from: Self.scenePoint(x: 0, z: -2.8), to: Self.scenePoint(x: 0, z: 2.8))
         root.addChildNode(axisX); root.addChildNode(axisZ)
 
-        for (node, name) in [(leftSpeakerNode, "leftSpeaker"), (rightSpeakerNode, "rightSpeaker")] {
+        for (node, name, color) in [(leftSpeakerNode, "leftSpeaker", SpatialPalette.left),
+                                    (rightSpeakerNode, "rightSpeaker", SpatialPalette.right)] {
             node.geometry = SCNBox(width: 0.28, height: 0.3, length: 0.4, chamferRadius: 0.035)
-            node.geometry?.materials = [material(.systemTeal)]
+            node.geometry?.materials = [material(color)]
             node.name = name; node.categoryBitMask = 2
             root.addChildNode(node)
         }
         listenerNode.geometry = SCNSphere(radius: 0.18)
-        listenerNode.geometry?.materials = [material(.systemYellow)]
+        listenerNode.geometry?.materials = [material(SpatialPalette.listener)]
         listenerNode.name = "listener"; listenerNode.categoryBitMask = 2
         root.addChildNode(listenerNode)
         listenerRingNode.geometry = SCNTorus(ringRadius: 0.27, pipeRadius: 0.018)
-        listenerRingNode.geometry?.materials = [material(.white)]
+        listenerRingNode.geometry?.materials = [material(SpatialPalette.listener)]
         root.addChildNode(listenerRingNode)
-        for ear in [leftEarNode, rightEarNode] {
+        for (ear, color) in [(leftEarNode, SpatialPalette.left), (rightEarNode, SpatialPalette.right)] {
             ear.geometry = SCNSphere(radius: 0.045)
             // Ear markers represent the DSP endpoints on the floor plane. Draw
             // them above the larger listener glyph without moving those points.
-            let earMaterial = material(.white)
+            let earMaterial = material(color)
             earMaterial.readsFromDepthBuffer = false
             earMaterial.writesToDepthBuffer = false
             ear.geometry?.materials = [earMaterial]
@@ -729,31 +782,45 @@ final class SpatialStageView: SCNView {
             root.addChildNode(ear)
         }
         widthNode.geometry = SCNCylinder(radius: 0.012, height: 1)
-        widthNode.geometry?.materials = [material(.systemTeal)]
+        widthNode.geometry?.materials = [material(NSColor(white: 0.30, alpha: 1))]
         root.addChildNode(widthNode)
         for path in 0..<4 {
             for node in pathNodes[path] {
                 node.geometry = SCNCylinder(radius: path == 0 || path == 3 ? 0.012 : 0.008, height: 1)
-                node.geometry?.materials = [material(path == 0 || path == 3 ? .white : .systemTeal)]
+                node.geometry?.materials = [material(path < 2 ? SpatialPalette.left : SpatialPalette.right)]
                 root.addChildNode(node)
             }
         }
-        for (button, action, label) in [(listenerButton, #selector(selectListener), "청취자 선택"),
-                                        (leftButton, #selector(selectLeft), "왼쪽 스피커 선택"),
-                                        (rightButton, #selector(selectRight), "오른쪽 스피커 선택")] {
+        for (button, action) in [(listenerButton, #selector(selectListener)),
+                                 (leftButton, #selector(selectLeft)),
+                                 (rightButton, #selector(selectRight))] {
             button.target = self; button.action = action; button.bezelStyle = .rounded
             button.onFocus = { [weak self] in self?.onFocus?() }
             button.setButtonType(.toggle)
+            button.isBordered = false
+            button.focusRingType = .none
             button.font = .systemFont(ofSize: 11, weight: .semibold)
-            button.setAccessibilityLabel(label)
             addSubview(button)
         }
+        listenerButton.accentColor = SpatialPalette.listener
+        leftButton.accentColor = SpatialPalette.left
+        rightButton.accentColor = SpatialPalette.right
+        // Stable identifiers and accessible names survive language changes.
+        listenerButton.identifier = NSUserInterfaceItemIdentifier("spatial.control.listener")
+        leftButton.identifier = NSUserInterfaceItemIdentifier("spatial.control.leftSpeaker")
+        rightButton.identifier = NSUserInterfaceItemIdentifier("spatial.control.rightSpeaker")
+        listenerButton.setAccessibilityLabel(L10n.string("spatial.stage.selectListener"))
+        leftButton.setAccessibilityLabel(L10n.string("spatial.stage.selectLeft"))
+        rightButton.setAccessibilityLabel(L10n.string("spatial.stage.selectRight"))
         for label in [frontLabel, widthLabel, stateLabel] {
             label.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
-            label.textColor = .secondaryLabelColor
+            label.textColor = NSColor(white: 0.76, alpha: 1)
             label.isSelectable = false
             addSubview(label)
         }
+        frontLabel.identifier = NSUserInterfaceItemIdentifier("spatial.stage.frontLabel")
+        widthLabel.identifier = NSUserInterfaceItemIdentifier("spatial.stage.widthLabel")
+        stateLabel.identifier = NSUserInterfaceItemIdentifier("spatial.stage.stateLabel")
         // Annotation frames avoid objects and names, but a displaced object's
         // leader can still pass behind them. Their padded opaque backing keeps
         // the direction and width text legible above every scene/leader line.
@@ -773,8 +840,8 @@ final class SpatialStageView: SCNView {
         selectionCoordinates.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
         selectionCoordinates.textColor = .labelColor
         selectionCoordinates.drawsBackground = true
-        selectionCoordinates.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94)
-        selectionCoordinates.toolTip = "선택 객체의 DSP 평면 좌표입니다. 회색 안내선은 오디오 경로가 아닙니다."
+        selectionCoordinates.backgroundColor = SpatialPalette.background
+        selectionCoordinates.toolTip = L10n.string("spatial.stage.coordinatesTooltip")
         addSubview(selectionCoordinates)
         renderState()
     }
@@ -834,6 +901,7 @@ final class SpatialStageView: SCNView {
             }
             listenerRingNode.position = SCNVector3(selectedNode.position.x, 0.04, selectedNode.position.z)
             listenerRingNode.isHidden = state.selection == .none
+            listenerRingNode.geometry?.firstMaterial?.diffuse.contents = SpatialPalette.color(for: state.selection)
             let left = Self.scenePoint(x: geometry.leftSpeaker.x, z: geometry.leftSpeaker.z, height: 0.04)
             let right = Self.scenePoint(x: geometry.rightSpeaker.x, z: geometry.rightSpeaker.z, height: 0.04)
             connect(widthNode, from: left, to: right)
@@ -852,11 +920,11 @@ final class SpatialStageView: SCNView {
                     let p = a + (b - a) * low
                     let q = a + (b - a) * high
                     connect(node, from: SCNVector3(p.x, p.y, p.z), to: SCNVector3(q.x, q.y, q.z))
-                    node.opacity = CGFloat((active ? 0.28 + 0.7 * gains[path] / maxGain : 0.10))
+                    node.opacity = CGFloat((active ? 0.28 + 0.7 * gains[path] / maxGain : 0.18))
                     node.isHidden = !state.showPaths
                 }
             }
-            for node in [listenerNode, leftSpeakerNode, rightSpeakerNode] { node.opacity = active ? 1 : 0.48 }
+            for node in [listenerNode, leftSpeakerNode, rightSpeakerNode] { node.opacity = active ? 1 : 0.64 }
         }
         SCNTransaction.commit()
         updateOverlays()
@@ -911,15 +979,15 @@ final class SpatialStageView: SCNView {
             occupied.append(best)
             return hypot(best.minX - preferred.x, best.minY - preferred.y) > 8
         }
-        frontLabel.stringValue = "앞 +Z"
+        frontLabel.stringValue = L10n.string("spatial.stage.front")
         frontLabel.alignment = .center
         place(frontLabel, world: Self.scenePoint(x: 0, z: 2.65), size: NSSize(width: 70, height: 16), offset: 2)
-        widthLabel.stringValue = String(format: "폭 %.2f m", model.settings.speakerWidth)
+        widthLabel.stringValue = L10n.format("spatial.stage.widthLabel", model.settings.speakerWidth)
         widthLabel.alignment = .center
         place(widthLabel, world: Self.scenePoint(x: 0, z: 1.8), size: NSSize(width: 95, height: 16), offset: -30)
         let objects = [(leftButton, leftSpeakerNode, NSSize(width: 32, height: 28), CGFloat(20)),
                        (rightButton, rightSpeakerNode, NSSize(width: 32, height: 28), CGFloat(20)),
-                       (listenerButton, listenerNode, NSSize(width: 60, height: 28), CGFloat(28))]
+                       (listenerButton, listenerNode, NSSize(width: max(76, listenerButton.fittingSize.width), height: 28), CGFloat(28))]
         for (index, entry) in objects.enumerated() {
             let (button, node, size, offset) = entry
             let moved = place(button, world: node.position, size: size, offset: offset)
@@ -936,21 +1004,29 @@ final class SpatialStageView: SCNView {
         for (button, selected) in [(listenerButton, model.sceneState.selection == .listener),
                                     (leftButton, model.sceneState.selection == .leftSpeaker),
                                     (rightButton, model.sceneState.selection == .rightSpeaker)] {
-            button.contentTintColor = selected ? .systemYellow : .labelColor
             button.state = selected ? .on : .off
             button.setAccessibilitySelected(selected)
-            button.setAccessibilityValue(selected ? "선택됨" : "선택 안 됨")
+            button.setAccessibilityValue(selected ? L10n.string("spatial.state.selected")
+                                                  : L10n.string("spatial.state.unselected"))
         }
-        listenerButton.toolTip = String(format: "청취자 X %.2f m, Z %.2f m. 무대에서 방향키로 이동합니다.", model.settings.listenerX, model.settings.listenerZ)
-        listenerButton.setAccessibilityValue(String(format: "X %.2f 미터, Z %.2f 미터, %@",
-                                                    model.settings.listenerX, model.settings.listenerZ,
-                                                    model.sceneState.selection == .listener ? "선택됨" : "선택 안 됨"))
-        let widthValue = String(format: "가상 스피커 폭 %.2f 미터", model.settings.speakerWidth)
-        leftButton.setAccessibilityValue("\(widthValue), \(model.sceneState.selection == .leftSpeaker ? "선택됨" : "선택 안 됨")")
-        rightButton.setAccessibilityValue("\(widthValue), \(model.sceneState.selection == .rightSpeaker ? "선택됨" : "선택 안 됨")")
-        leftButton.toolTip = "왼쪽 스피커 · 폭 조절"
-        rightButton.toolTip = "오른쪽 스피커 · 폭 조절"
-        stateLabel.stringValue = "\(model.settings.enabled ? "ON" : "OFF") · 격자 0.5 m · 오른쪽 +X · 앞 +Z"
+        listenerButton.toolTip = L10n.format("spatial.stage.listenerTooltip",
+                                             model.settings.listenerX, model.settings.listenerZ)
+        listenerButton.setAccessibilityValue(L10n.format("spatial.stage.listenerValue",
+            model.settings.listenerX, model.settings.listenerZ,
+            model.sceneState.selection == .listener ? L10n.string("spatial.state.selected")
+                                                    : L10n.string("spatial.state.unselected")))
+        let widthValue = L10n.format("spatial.stage.widthValue", model.settings.speakerWidth)
+        leftButton.setAccessibilityValue(L10n.format("spatial.stage.speakerValue", widthValue,
+            model.sceneState.selection == .leftSpeaker ? L10n.string("spatial.state.selected")
+                                                       : L10n.string("spatial.state.unselected")))
+        rightButton.setAccessibilityValue(L10n.format("spatial.stage.speakerValue", widthValue,
+            model.sceneState.selection == .rightSpeaker ? L10n.string("spatial.state.selected")
+                                                        : L10n.string("spatial.state.unselected")))
+        leftButton.toolTip = L10n.string("spatial.stage.leftTooltip")
+        rightButton.toolTip = L10n.string("spatial.stage.rightTooltip")
+        stateLabel.stringValue = L10n.format("spatial.stage.stateLabel",
+                                             model.settings.enabled ? L10n.string("spatial.state.on")
+                                                                    : L10n.string("spatial.state.off"))
         stateLabel.frame = NSRect(x: 10, y: 7, width: max(0, bounds.width - 20), height: 15)
         updateSelectionCoordinates()
     }
@@ -960,18 +1036,22 @@ final class SpatialStageView: SCNView {
             selectionCoordinates.isHidden = true; selectionLeader.isHidden = true
             return
         }
+        selectionCoordinates.textColor = SpatialPalette.color(for: model.sceneState.selection)
         let name: String, x: Float, z: Float, node: SCNNode
         switch model.sceneState.selection {
         case .listener:
-            name = "청취자"; x = model.settings.listenerX; z = model.settings.listenerZ; node = listenerNode
+            name = L10n.string("spatial.selection.listener")
+            x = model.settings.listenerX; z = model.settings.listenerZ; node = listenerNode
         case .leftSpeaker:
-            name = "L"; x = geometry.leftSpeaker.x; z = geometry.leftSpeaker.z; node = leftSpeakerNode
+            name = L10n.string("spatial.selection.left")
+            x = geometry.leftSpeaker.x; z = geometry.leftSpeaker.z; node = leftSpeakerNode
         case .rightSpeaker:
-            name = "R"; x = geometry.rightSpeaker.x; z = geometry.rightSpeaker.z; node = rightSpeakerNode
+            name = L10n.string("spatial.selection.right")
+            x = geometry.rightSpeaker.x; z = geometry.rightSpeaker.z; node = rightSpeakerNode
         case .none: return
         }
-        selectionCoordinates.stringValue = String(format: "%@ · X %+.2f m · Z %+.2f m", name, x, z)
-        selectionCoordinates.setAccessibilityLabel("선택한 \(name)의 DSP 평면 좌표")
+        selectionCoordinates.stringValue = L10n.format("spatial.stage.coordinates", name, x, z)
+        selectionCoordinates.setAccessibilityLabel(L10n.format("spatial.stage.coordinatesLabel", name))
         selectionCoordinates.setAccessibilityValue(selectionCoordinates.stringValue)
         selectionCoordinates.sizeToFit()
         let labelWidth = min(selectionCoordinates.frame.width + 10, max(1, bounds.width - 12))

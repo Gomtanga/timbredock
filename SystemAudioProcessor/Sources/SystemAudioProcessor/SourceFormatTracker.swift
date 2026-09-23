@@ -17,10 +17,10 @@ struct SourceFormatSnapshot: Sendable {
             return format.indicatorText
         }
         if Set(formats.map(\.player)).count > 1 {
-            return "Source \(formats.map { $0.player.displayName }.joined(separator: " + ")): 복수 소스, 자동 맞춤 대기"
+            return L10n.format("runtime.source.multiple", formats.map { $0.player.displayName }.joined(separator: " + "))
         }
         guard !activePlayers.isEmpty else {
-            return "Source: Apple Music/TIDAL 대기 중"
+            return L10n.string("runtime.source.waiting")
         }
         return "Source \(activePlayers.map(\.displayName).joined(separator: " + ")): unknown"
     }

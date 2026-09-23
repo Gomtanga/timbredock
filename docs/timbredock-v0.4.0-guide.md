@@ -4,7 +4,7 @@
 
 [English](timbredock-v0.4.0-guide.en.md) · [개편 명세](redesign-v0.4.0.md)
 
-이 문서는 v0.4.0 후보 빌드의 화면과 설정을 설명합니다. 아직 공식 릴리즈로 게시하지 않았고, 현재 배포되는 안정 버전은 v0.3.0 LowEnd Native Audio입니다. v0.3.0 사용법은 [기존 설치 안내](getting-started.md)에 있습니다. 기기별 청취·장치 전환 등 최종 승인 항목은 별도로 확인합니다.
+이 문서는 [v0.4.0 정식 릴리스](https://github.com/Gomtanga/timbredock/releases/tag/v0.4.0)의 화면과 설정을 설명합니다. 화면 자료는 정식 배포에 사용한 후보 앱 빌드에서 만들었습니다. 실제 장치 검사 결과와 아직 확인하지 못한 환경은 [후보 검증 기록](release-candidate-v0.4.0.md)에 있습니다. 이전 v0.3.0 사용법은 [기존 설치 안내](getting-started.md)를 참고하세요.
 
 아래 이미지는 오프라인 UI 렌더링입니다. 오디오 처리는 시작하지 않았고, 모니터 화면에는 실시간 측정값이 없습니다. 실제 Liquid Glass 재질과 SceneKit 합성 화면은 별도로 확인합니다.
 

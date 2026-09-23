@@ -4,7 +4,7 @@ The screenshots below come from the 2026-09-23 release-candidate build (1bf8fed)
 
 [한국어](timbredock-v0.4.0-guide.md) · [Redesign specification](redesign-v0.4.0.md)
 
-This guide describes the v0.4.0 release-candidate build. It has not been published as a formal release; v0.3.0 LowEnd Native Audio remains the published stable version, covered by the [previous getting-started guide](getting-started.en.md). Device listening, transition and other final acceptance items are tracked separately.
+This guide covers the [v0.4.0 release](https://github.com/Gomtanga/timbredock/releases/tag/v0.4.0). Its screenshots were made with the candidate app build used for the public package. See the [candidate verification record](release-candidate-v0.4.0.md) for device results and environments that remain untested. The [previous getting-started guide](getting-started.en.md) covers v0.3.0.
 
 The images below are offline UI renderings. Processing was not started and the Signal Monitor has no live measurements. Actual Liquid Glass material and SceneKit compositing are verified separately.
 

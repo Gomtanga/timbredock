@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0"><strong>Download the current stable version</strong></a> ·
-  <a href="#features">Preview v0.4.0</a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip"><strong>Download TimbreDock v0.4.0</strong></a> ·
+  <a href="#features">Features</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#documentation">Documentation</a>
 </p>
@@ -25,7 +25,7 @@
 
 [한국어](README.md) · **English**
 
-> **Release status** — v0.4.0 **TimbreDock** is a release candidate. The new interface and features below describe that candidate. The current public stable release is **LowEnd Native Audio v0.3.0**, under the earlier app name, and the download link still points to it. [Candidate results and remaining coverage (Korean)](docs/release-candidate-v0.4.0.md)
+> **v0.4.0 release** — [Download the Apple Silicon Mac ZIP](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [Release notes](https://github.com/Gomtanga/timbredock/releases/tag/v0.4.0). The earlier **LowEnd Native Audio v0.3.0** remains available from its [original release](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0). [Candidate results and remaining coverage (Korean)](docs/release-candidate-v0.4.0.md)
 
 <a id="features"></a>
 
@@ -47,7 +47,7 @@ TimbreDock processes macOS audio before it reaches the selected output device. U
 
 <img src="docs/assets/v0.4.0-spatial-en.png" width="1122" alt="Actual TimbreDock v0.4.0 Spatial 3D page showing left and right virtual speakers, the listener and spatial controls.">
 
-<p align="center"><sub>Spatial 3D in the running release candidate · English interface</sub></p>
+<p align="center"><sub>Spatial 3D in the running v0.4.0 candidate · English interface</sub></p>
 
 Spatial uses stereo distance, timing and crossfeed. It does not provide individualized HRTF rendering or room reverb. [Learn how to adjust it](docs/timbredock-v0.4.0-guide.en.md)
 
@@ -57,8 +57,8 @@ Spatial uses stereo distance, timing and crossfeed. It does not provide individu
 
 | Version | App name | How to get it |
 |---|---|---|
-| **v0.3.0 · current public stable release** | LowEnd Native Audio | [Download the macOS ZIP from the release page](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [Previous setup guide](docs/getting-started.en.md) |
-| **v0.4.0 · release candidate** | TimbreDock | Not publicly released yet. [Candidate user guide](docs/timbredock-v0.4.0-guide.en.md) · [Build from source](docs/development.en.md) |
+| **v0.4.0 · latest release** | TimbreDock | [Download the macOS arm64 ZIP](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [Verify SHA-256](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/SHA256SUMS.txt) · [User guide](docs/timbredock-v0.4.0-guide.en.md) |
+| **v0.3.0 · previous release** | LowEnd Native Audio | [Original release page](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [Previous setup guide](docs/getting-started.en.md) |
 
 The distributed app targets **Apple Silicon Macs running macOS 14.4 or later**. No Intel Mac or Windows app is provided. Building the v0.4.0 source requires **Xcode 26 with the macOS 26 SDK or later**.
 
@@ -96,7 +96,7 @@ The Treble processing band and strength curve are planned for improvement in **v
 |---|---|
 | [v0.4.0 user guide](docs/timbredock-v0.4.0-guide.en.md) | Five pages, presets, output modes, language changes and troubleshooting |
 | [Release-candidate report (Korean)](docs/release-candidate-v0.4.0.md) | Hardware, UI and CI results, plus remaining verification |
-| [v0.3.0 setup guide](docs/getting-started.en.md) | Installation and permissions for the current public stable release |
+| [v0.3.0 setup guide](docs/getting-started.en.md) | Installation and permissions for the previous release |
 | [Development guide](docs/development.en.md) | Source builds, offline checks and the Swift/C++ architecture |
 | [Contributing](CONTRIBUTING.md) | What to include in an issue or change proposal |
 

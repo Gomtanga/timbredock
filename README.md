@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0"><strong>현재 안정판 다운로드</strong></a> ·
-  <a href="#features">v0.4.0 미리보기</a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip"><strong>TimbreDock v0.4.0 다운로드</strong></a> ·
+  <a href="#features">기능</a> ·
   <a href="#quick-start">빠른 시작</a> ·
   <a href="#documentation">문서</a>
 </p>
@@ -25,7 +25,7 @@
 
 **한국어** · [English](README.en.md)
 
-> **배포 상태** — v0.4.0 **TimbreDock**는 릴리스 후보입니다. 아래 새 화면과 기능 설명은 이 후보를 기준으로 합니다. 현재 공개된 안정판은 이전 이름의 **LowEnd Native Audio v0.3.0**이며, 다운로드 링크도 그 버전을 가리킵니다. [후보 검증 결과와 남은 범위](docs/release-candidate-v0.4.0.md)
+> **v0.4.0 정식 릴리스** — Apple Silicon Mac용 [ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [릴리스 정보](https://github.com/Gomtanga/timbredock/releases/tag/v0.4.0). 이전 버전인 **LowEnd Native Audio v0.3.0**도 [기존 릴리스](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0)에서 받을 수 있습니다. [후보 검증 결과와 남은 범위](docs/release-candidate-v0.4.0.md)
 
 <a id="features"></a>
 
@@ -47,7 +47,7 @@ TimbreDock는 macOS의 오디오를 출력 장치로 보내기 전에 처리합�
 
 <img src="docs/assets/v0.4.0-spatial-en.png" width="1122" alt="TimbreDock v0.4.0의 실제 Spatial 3D 화면. 좌우 가상 스피커와 청취자 위치, 공간 조절값이 표시됩니다.">
 
-<p align="center"><sub>릴리스 후보의 실제 Spatial 3D 화면 · 영어 UI에서 촬영</sub></p>
+<p align="center"><sub>v0.4.0 후보 앱의 실제 Spatial 3D 화면 · 영어 UI에서 촬영</sub></p>
 
 Spatial은 거리, 시간차, 크로스피드를 이용하는 스테레오 처리입니다. 개인화 HRTF나 방 리버브를 제공하지 않습니다. [조절 방법 보기](docs/timbredock-v0.4.0-guide.md)
 
@@ -57,8 +57,8 @@ Spatial은 거리, 시간차, 크로스피드를 이용하는 스테레오 처�
 
 | 버전 | 앱 이름 | 받는 방법 |
 |---|---|---|
-| **v0.3.0 (현재 공개 안정판)** | LowEnd Native Audio | [릴리스 페이지에서 macOS ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [기존 설치 안내](docs/getting-started.md) |
-| **v0.4.0 (릴리스 후보)** | TimbreDock | 아직 공개 배포 전입니다. [후보 사용 안내](docs/timbredock-v0.4.0-guide.md) · [소스 빌드](docs/development.md) |
+| **v0.4.0 (최신 릴리스)** | TimbreDock | [macOS arm64 ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/TimbreDock-v0.4.0-macOS-arm64.zip) · [SHA-256 확인](https://github.com/Gomtanga/timbredock/releases/download/v0.4.0/SHA256SUMS.txt) · [사용 안내](docs/timbredock-v0.4.0-guide.md) |
+| **v0.3.0 (이전 버전)** | LowEnd Native Audio | [기존 릴리스 페이지](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [기존 설치 안내](docs/getting-started.md) |
 
 배포 앱의 대상은 **macOS 14.4 이상을 실행하는 Apple Silicon Mac**입니다. Intel Mac이나 Windows용 앱은 제공하지 않습니다. v0.4.0 소스를 빌드하려면 **Xcode 26과 macOS 26 SDK 이상**이 필요합니다.
 
@@ -96,7 +96,7 @@ Treble의 처리 대역과 강도 곡선 개선은 **v0.4.1 계획**입니다. �
 |---|---|
 | [v0.4.0 사용 안내](docs/timbredock-v0.4.0-guide.md) | 다섯 화면, 프리셋, 출력 모드, 언어 변경, 문제 해결 |
 | [릴리스 후보 검증](docs/release-candidate-v0.4.0.md) | 실제 장치, UI, CI 결과와 아직 확인하지 못한 범위 |
-| [v0.3.0 설치 안내](docs/getting-started.md) | 현재 공개 안정판의 설치와 권한 설정 |
+| [v0.3.0 설치 안내](docs/getting-started.md) | 이전 버전의 설치와 권한 설정 |
 | [개발 가이드](docs/development.md) | 소스 빌드, 오프라인 검사, Swift·C++ 구성 |
 | [기여 안내](CONTRIBUTING.md) | 이슈에 포함할 정보와 변경 제안 방법 |
 

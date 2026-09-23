@@ -5,116 +5,105 @@
 </picture>
 
 <p align="center">
-  <strong>Mac의 소리에 저역의 무게, 고역의 질감, 헤드폰의 공간감을 더하세요.</strong><br>
-  전체 시스템 또는 선택한 앱의 오디오를 실시간으로 처리하는 오픈소스 DSP.
+  <strong>Mac의 소리를 내 취향과 공간에 맞게.</strong><br>
+  전체 시스템 또는 선택한 앱에 저역, 배음, 스테레오 공간 처리를 적용하는 오픈소스 macOS 앱.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip"><strong>macOS용 다운로드 ↗</strong></a> ·
+  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0"><strong>현재 안정판 다운로드</strong></a> ·
+  <a href="#features">v0.4.0 미리보기</a> ·
   <a href="#quick-start">빠른 시작</a> ·
-  <a href="#documentation">문서</a> ·
-  <a href="https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0">v0.3.0 릴리스 노트</a>
+  <a href="#documentation">문서</a>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/Gomtanga/timbredock?display_name=tag&sort=semver&color=c68b32)](https://github.com/Gomtanga/timbredock/releases/latest)
-[![macOS CI](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml)
-[![Core CI](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml/badge.svg)](https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-486b87)](LICENSE)
+<p align="center">
+  <a href="https://github.com/Gomtanga/timbredock/releases/latest"><img src="https://img.shields.io/github/v/release/Gomtanga/timbredock?display_name=tag&amp;sort=semver&amp;color=111111" alt="최신 공개 릴리스"></a>
+  <a href="https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml"><img src="https://github.com/Gomtanga/timbredock/actions/workflows/macos-native-ci.yml/badge.svg" alt="macOS CI"></a>
+  <a href="https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml"><img src="https://github.com/Gomtanga/timbredock/actions/workflows/cross-platform-core-ci.yml/badge.svg" alt="Core CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-444444" alt="AGPL-3.0-or-later 라이선스"></a>
+</p>
 
 **한국어** · [English](README.en.md)
 
-> **TimbreDock v0.4.0 릴리스 후보 준비** — LowEnd Circuit의 새 이름입니다. UI·영어/한국어·신호 분석 개편을 구현하고 후보 빌드와 CI를 검증했습니다. 정식 릴리스는 아직 게시하지 않았습니다. 아래 다운로드와 기존 화면은 안정 버전 v0.3.0을 기준으로 합니다. [최종 후보 검증과 남은 범위](docs/release-candidate-v0.4.0.md) · [v0.4.0 guide](docs/timbredock-v0.4.0-guide.md) · [새 소스 빌드](docs/development.md)
+> **배포 상태** — v0.4.0 **TimbreDock**는 릴리스 후보입니다. 아래 새 화면과 기능 설명은 이 후보를 기준으로 합니다. 현재 공개된 안정판은 이전 이름의 **LowEnd Native Audio v0.3.0**이며, 다운로드 링크도 그 버전을 가리킵니다. [후보 검증 결과와 남은 범위](docs/release-candidate-v0.4.0.md)
 
-## 내 취향에 맞게, 듣는 공간까지
+<a id="features"></a>
 
-**LowEnd Circuit**의 macOS 앱 **LowEnd Native Audio**는 음악, 브라우저, 게임의 소리를 현재 출력 장치로 전달하기 전에 조절합니다. 저역을 다듬고, 배음을 더하고, 가상 스피커와 청취자의 위치로 헤드폰의 공간감을 바꿔 보세요.
+## 하나의 앱에서 소리와 공간을 조절합니다
 
-유선 헤드폰뿐 아니라 **Bluetooth 무선 이어폰**에서도 사용할 수 있습니다. 무선 이어폰을 Mac에 연결하고 macOS의 출력 장치로 선택한 뒤, 전체 시스템 또는 특정 앱에 오디오 처리를 적용하세요.
+TimbreDock는 macOS의 오디오를 출력 장치로 보내기 전에 처리합니다. **시스템 오디오(System Audio)**로 대부분의 시스템 소리를 다루거나, 실행 중인 앱 하나를 선택할 수 있습니다. 사운드, 공간 음향, 출력은 독립적으로 설정하며 처리 중에도 효과 값을 조절할 수 있습니다.
 
-<img src="docs/assets/spatial-stage.png" width="1224" alt="LowEnd Native Audio의 실제 Spatial Stage 화면. 3D 공간에 좌우 가상 스피커와 청취자가 표시되고, 오른쪽에서 위치와 공간 처리 값을 조절합니다.">
+<img src="docs/assets/v0.4.0-sound-ko.png" width="1180" alt="TimbreDock v0.4.0의 한국어 Sound 화면. Bass Boost 모델과 세 개의 조절값, 프리셋이 보입니다.">
 
-<p align="center"><sub>Spatial Stage · 가상 스피커와 청취자 위치를 직접 조절하는 실제 앱 화면</sub></p>
+<p align="center"><sub>v0.4.0 Sound 화면 · 오디오를 재생하지 않은 상태에서 만든 UI 이미지</sub></p>
 
-| 저역과 질감 | 공간과 신호 확인 |
+| 화면 | 할 수 있는 일 |
 |---|---|
-| **Circuit** — LowEnd와 Body로 저역의 양감과 포화 질감을 조절합니다. | **Spatial Stage** — 스피커 폭, 청취자 위치, 거리 게인과 크로스피드로 공간감을 조절합니다. |
-| **HighExciter** — 고역 성분에서 배음을 만들어 섬세하게 더합니다. 비선형 구간에 자체 오버샘플링을 적용합니다. | **Analysis** — 실시간 스펙트럼, Peak, RMS, Crest Factor로 신호를 확인합니다. |
+| **사운드(Sound)** | 저음 강화(Bass Boost)로 저역의 양과 두께를, 고음 배음(Treble Harmonics)으로 배음 생성 강도와 추가량을 조절합니다. 끄기(Off)는 톤 모델만 우회합니다. |
+| **공간 음향(Spatial)** | 평면 또는 3D 화면에서 가상 스피커 폭과 청취자 위치를 옮기고 공간 처리량을 조절합니다. |
+| **신호 모니터(Signal Monitor)** | 처리된 신호의 상대 주파수 분포와 Peak, RMS, Crest를 확인합니다. 청취 음압이나 true peak 측정값은 아닙니다. |
+| **출력(Output)** | Standard, 실험적 PCM 2× 업샘플링, 실험적 Match Source Sample Rate 중 하나를 선택합니다. |
+| **설정(Settings)** | 영어 또는 한국어를 선택하고 진단 정보를 확인합니다. 언어 변경은 앱을 완전히 종료한 다음 실행할 때 반영됩니다. |
 
-Spatial Stage는 기하학 기반의 스테레오 공간 처리입니다. 개인화 HRTF나 방 리버브는 제공하지 않습니다.
+<img src="docs/assets/v0.4.0-spatial-en.png" width="1122" alt="TimbreDock v0.4.0의 실제 Spatial 3D 화면. 좌우 가상 스피커와 청취자 위치, 공간 조절값이 표시됩니다.">
 
-### 몇 가지 조절로 만드는 나만의 소리
+<p align="center"><sub>릴리스 후보의 실제 Spatial 3D 화면 · 영어 UI에서 촬영</sub></p>
 
-Circuit의 **IEM · Gentle · LowEnd · Deep · Clear**, HighExciter의 **Soft · Air · Detail · Shimmer · Off** 프리셋으로 시작해 세부 값을 조절하세요. 프리셋마다 음량이 다를 수 있으므로 비교할 때는 출력 레벨도 함께 확인하세요.
-
-<img src="docs/assets/circuit.png" width="1080" alt="LowEnd Native Audio의 실제 Circuit 화면. LowEnd, Body, Output 슬라이더와 IEM, Gentle, LowEnd, Deep, Clear 프리셋이 있습니다.">
-
-<p align="center"><sub>Circuit · 모델 선택, 저역 조절, 프리셋을 한 화면에서</sub></p>
+Spatial은 거리, 시간차, 크로스피드를 이용하는 스테레오 처리입니다. 개인화 HRTF나 방 리버브를 제공하지 않습니다. [조절 방법 보기](docs/timbredock-v0.4.0-guide.md)
 
 <a id="quick-start"></a>
 
-## 다운로드하고 시작하기
+## 다운로드와 빠른 시작
 
-| 지원 환경 | 배포 앱 |
-|---|---|
-| **macOS 14.4 이상 · Apple Silicon** | [LowEnd Native Audio v0.3.0 ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/download/v0.3.0/LowEnd-Native-Audio-macOS-v0.3.0.zip) |
+| 버전 | 앱 이름 | 받는 방법 |
+|---|---|---|
+| **v0.3.0 (현재 공개 안정판)** | LowEnd Native Audio | [릴리스 페이지에서 macOS ZIP 다운로드](https://github.com/Gomtanga/timbredock/releases/tag/v0.3.0) · [기존 설치 안내](docs/getting-started.md) |
+| **v0.4.0 (릴리스 후보)** | TimbreDock | 아직 공개 배포 전입니다. [후보 사용 안내](docs/timbredock-v0.4.0-guide.md) · [소스 빌드](docs/development.md) |
 
-1. ZIP을 풀고 **LowEnd Native Audio.app**을 **응용 프로그램** 폴더로 옮깁니다.
-2. 앱을 실행하고 macOS의 **시스템 오디오 녹음 권한**을 허용합니다.
-3. **Circuit → IEM 또는 Gentle**, **HighExciter → Soft 또는 Air**로 시작합니다.
-4. **왼쪽 아래 스피커 버튼**(전체 시스템 적용)을 누르고 음악을 재생합니다.
+배포 앱의 대상은 **macOS 14.4 이상을 실행하는 Apple Silicon Mac**입니다. Intel Mac이나 Windows용 앱은 제공하지 않습니다. v0.4.0 소스를 빌드하려면 **Xcode 26과 macOS 26 SDK 이상**이 필요합니다.
 
-앱은 **애드혹 서명 상태이며 Apple 공증을 받지 않았습니다**. 첫 실행이 차단되면 출처를 확인한 뒤 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**에서 허용하세요. 자세한 안내와 특정 앱 처리 방법은 [설치와 사용 시작](docs/getting-started.md)에 있습니다.
+v0.4.0 TimbreDock 앱을 실행한 뒤에는 다음 순서로 시작하세요.
 
-**앱은 하나만 실행하세요.** TIDAL 등의 독점 출력 모드는 끄고, 출력 장치를 바꾸기 전에는 **중지**를 누르세요.
+1. macOS에서 사용할 출력 장치를 선택하고 TimbreDock의 **시스템 오디오 녹음 권한**을 허용합니다.
+2. 상단에서 **시스템 오디오(System Audio)**를 선택하거나 **앱 선택(Choose app…)**으로 실행 중인 앱을 고릅니다.
+3. **사운드(Sound)**에서 저음 강화 또는 고음 배음을 선택하고 낮은 설정부터 조절합니다.
+4. **적용(Apply)**을 누르고 상단의 실제 처리 상태와 출력 장치를 확인합니다. 대상 앱을 바꿨다면 다시 적용을 누릅니다.
+5. 출력 장치를 바꾸거나 처리를 끝낼 때는 **중지(Stop)**를 누르고 중지 및 장치 샘플레이트 복원 상태를 확인합니다.
 
-<a id="faq"></a>
+Mac 내장 출력, 유선 헤드폰, **Bluetooth 무선 이어폰**을 macOS 출력 장치로 사용할 수 있습니다. 외장 DAC는 필수가 아닙니다. 다만 무선 코덱, 지연 시간, 지원 샘플레이트는 장치마다 다르고, 모든 장치가 2× 출력을 지원하지는 않습니다. v0.4.0의 무선 장치별 실기기 검증 범위는 [후보 보고서](docs/release-candidate-v0.4.0.md)에 기록했습니다.
 
-## 사용하면서 궁금한 점
+앱은 한 번에 하나만 실행하세요. 플레이어의 독점 출력 모드는 macOS 처리 경로를 우회할 수 있습니다. 앱에는 애드혹 서명이 적용되었으며 Apple의 공증은 받지 않았습니다. macOS가 첫 실행을 막으면 출처를 확인한 뒤 [설치 안내](docs/getting-started.md)의 절차를 따르세요.
 
-<details>
-<summary><strong>HighExciter 오버샘플링과 PCM Oversampling 2×는 같은 기능인가요?</strong></summary>
+## 출력과 측정값을 읽는 법
 
-적용 위치가 다릅니다. HighExciter는 배음을 만드는 비선형 구간 내부에서 오버샘플링하고 원래 처리 샘플레이트로 돌아옵니다. 출력 컨디셔닝의 PCM 2×는 톤 모델과 Spatial 처리 이후 출력 샘플레이트를 높입니다. 함께 사용할 수 있으며, 장치가 지원하면 44.1 → 88.2 kHz 또는 48 → 96 kHz로 출력합니다.
+```text
+재생 앱 → macOS 오디오 캡처 → 사운드 → 공간 음향 → 출력 → 선택한 출력 장치
+                                              └─ 신호 모니터
+```
 
-</details>
+- 사운드의 **끄기(Off)**를 선택해도 공간 음향과 출력은 각자 동작합니다. 원본과 비교하려면 공간 음향을 끄고 출력을 Standard로 설정하세요.
+- Treble Harmonics의 **Harmonic Oversampling**은 배음을 만드는 내부 구간에 적용됩니다. Output의 **2× Upsampling**은 톤·Spatial 처리 후 출력 샘플레이트를 올립니다. 두 기능의 역할은 다릅니다.
+- **Upsampling Gain**은 PCM 2× 출력이 실제로 활성 상태일 때만 신호 레벨을 낮춥니다. 저장된 값만으로 감쇠하지 않으며, 리미터도 아닙니다.
+- 신호 모니터는 사운드, 공간 음향, 출력 뒤에서 재생 페이드와 장치 볼륨 앞의 신호를 보여 줍니다. 수치를 실제 청취 음압으로 해석하지 마세요.
 
-<details>
-<summary><strong>헤드룸을 바꿔도 음량이 같아요. 외장 DAC가 필요한가요?</strong></summary>
-
-헤드룸은 **PCM 2×가 실제로 활성화된 상태**에서만 반영됩니다. 설정값과 실제 활성 상태를 구분해 확인하세요. 외장 DAC가 필수인 것은 아니며, 내장 출력도 목표 샘플레이트를 지원하면 사용할 수 있습니다. 자세한 조건은 [오디오 가이드](docs/audio-guide.md)에 정리되어 있습니다.
-
-</details>
-
-<details>
-<summary><strong>Clean을 선택하면 모든 처리가 꺼지나요?</strong></summary>
-
-Clean은 Circuit와 HighExciter 톤 모델만 우회합니다. Spatial과 Output Conditioning은 독립적으로 동작하므로 원본과 비교하려면 각각 꺼야 합니다.
-
-</details>
-
-<details>
-<summary><strong>적용한 뒤 소리가 나오지 않으면 어떻게 하나요?</strong></summary>
-
-앱이 중복 실행 중인지, 시스템 오디오 녹음 권한이 있는지, 올바른 출력 장치를 선택했는지 확인하세요. 플레이어의 독점 모드를 끄고 **중지 → 다시 적용**합니다. 특정 앱 처리라면 먼저 대상 앱에서 재생을 시작하세요. [설치 가이드의 점검 순서](docs/getting-started.md)를 참고하세요.
-
-</details>
+Treble의 처리 대역과 강도 곡선 개선은 **v0.4.1 계획**입니다. 현재 v0.4.0에서는 입력의 고역 성분이 적으면 변화가 작게 들릴 수 있습니다. [측정과 확인 범위](docs/validation-v0.4.0-language-treble.md)
 
 <a id="documentation"></a>
 
-## 더 알아보기
+## 문서와 개발
 
-| 문서 | 이런 내용을 찾을 때 |
+| 문서 | 내용 |
 |---|---|
-| [설치와 사용 시작](docs/getting-started.md) | 다운로드, 권한, 전체 시스템·특정 앱 처리, 무음 점검 |
-| [오디오 가이드](docs/audio-guide.md) | 모델, 프리셋 수치, PCM 2×, 헤드룸, Source와 Rate Match |
-| [개발 가이드](docs/development.md) | 소스 빌드, 검증 명령, Swift·C++ 구조, 상세 설계 문서 |
-| [기여 안내](CONTRIBUTING.md) | 버그 신고에 필요한 정보와 변경 제안 방법 |
-| [릴리스 노트](https://github.com/Gomtanga/timbredock/releases) | 버전별 변경 사항과 검증 범위 |
+| [v0.4.0 사용 안내](docs/timbredock-v0.4.0-guide.md) | 다섯 화면, 프리셋, 출력 모드, 언어 변경, 문제 해결 |
+| [릴리스 후보 검증](docs/release-candidate-v0.4.0.md) | 실제 장치, UI, CI 결과와 아직 확인하지 못한 범위 |
+| [v0.3.0 설치 안내](docs/getting-started.md) | 현재 공개 안정판의 설치와 권한 설정 |
+| [개발 가이드](docs/development.md) | 소스 빌드, 오프라인 검사, Swift·C++ 구성 |
+| [기여 안내](CONTRIBUTING.md) | 이슈에 포함할 정보와 변경 제안 방법 |
 
-Source 표시는 확인 가능한 근거에 따라 제공되며, **자동 Rate Match는 기본값이 꺼진 실험 기능**입니다. 실시간 출력 컨디셔닝은 **PCM 2×**까지 지원합니다. 세부 조건과 실험 범위는 오디오·개발 가이드를 참고하세요.
+macOS 앱은 `SystemAudioProcessor/`의 Swift·C 엔진으로 동작합니다. `Source/Core/`에는 별도로 시험할 수 있는 C++ DSP 코어가 있으며, 이 저장소가 Windows 앱을 배포한다는 뜻은 아닙니다. v0.4.0 소스에서 앱을 빌드하려면 다음 명령을 사용하세요. 전체 요구 사항과 검증 명령은 [개발 가이드](docs/development.md)에 있습니다.
 
-## 함께 만들기
+```sh
+./scripts/build-native-system-audio-app.sh
+```
 
-버그나 아이디어는 [GitHub Issues](https://github.com/Gomtanga/timbredock/issues)에 남겨 주세요. 코드 기여는 [개발 가이드](docs/development.md)와 [기여 안내](CONTRIBUTING.md)에서 시작할 수 있습니다. 이 저장소는 macOS 앱과 휴대용 C++ DSP 코어를 함께 개발합니다.
-
-[GNU AGPL-3.0-or-later](LICENSE) 라이선스로 배포합니다. 독자적으로 설계한 DSP이며 특정 제조사와 제휴하거나 독점 회로의 정확한 재현을 주장하지 않습니다. 제3자의 이름과 상표는 각 소유자에게 귀속됩니다.
+문제 제보와 기능 제안은 [GitHub Issues](https://github.com/Gomtanga/timbredock/issues)에 남겨 주세요. 이 프로젝트는 [GNU AGPL-3.0-or-later](LICENSE)로 배포합니다. 독자적으로 설계한 DSP이며 특정 제조사와 제휴하거나 독점 회로를 정확히 재현한다고 주장하지 않습니다.
